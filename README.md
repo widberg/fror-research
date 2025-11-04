@@ -20,7 +20,11 @@ Information that might be useful for modding Ford Racing Off Road (2008) by Razo
 
 ## Notes
 
-### [Detect It Easy](https://github.com/horsicq/Detect-It-Easy)
+### Signatures
+
+#### [Detect It Easy](https://github.com/horsicq/Detect-It-Easy)
+
+`FordORR.exe`
 
 ```plaintext
 PE32
@@ -32,7 +36,9 @@ PE32
     (Heur)Licensing: Licensing[Strings]
 ```
 
-### [signsrch](https://aluigi.altervista.org/mytoolz.htm)
+#### [signsrch](https://aluigi.altervista.org/mytoolz.htm)
+
+`signsrch -e FordORR.exe`
 
 ```plaintext
 - open file "FordORR.exe"
