@@ -30,7 +30,7 @@ fn calculate_sum(auto arr) {
     return sum;
 };
 
-fn calculate_size(u32 flags, u16 w) {
+fn calculate_size(u32 flags, s16 w) {
     u32 size = 20;
     u8 cursor_0 = (flags >> 0) & 0xFF;
     u8 cursor_1 = (flags >> 8) & 0xFF;
@@ -40,7 +40,7 @@ fn calculate_size(u32 flags, u16 w) {
         size += 20;
     if ( (cursor_1 & 1) != 0 )
         size += 4;
-    if ( w == 0xFFFF || (cursor_0 & 2) != 0 || (cursor_0 & 4) != 0 )
+    if ( w == -1 || (cursor_0 & 2) != 0 || (cursor_0 & 4) != 0 )
         size += 4;
     if ( (cursor_0 & 8) != 0 )
         size += 4;
@@ -61,8 +61,10 @@ fn calculate_size(u32 flags, u16 w) {
 
 struct ThreeDObjsPcEntry2 {
     u32 flags;
-    u16 w;
-    u8 data[calculate_size(flags, w) - 4 - 2];
+    s16 w;
+    u16 num_vertices;
+    u32 a;
+    u8 data[calculate_size(flags, w) - 4 - 2 - 2 - 4];
 };
 
 struct ThreeDObjsPcEntry3 {
