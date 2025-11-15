@@ -59,28 +59,31 @@ fn calculate_size(u32 flags, s16 w) {
     return size;
 };
 
-struct ThreeDObjsPcEntry2 {
+struct MeshDescriptor {
     u32 flags;
     s16 w;
     u16 num_vertices;
-    u32 a;
+    u32 num_ngons;
     u8 data[calculate_size(flags, w) - 4 - 2 - 2 - 4];
 };
 
-struct ThreeDObjsPcEntry3 {
+struct NGon {
+    u16 num_indicess;
+    u16 indices[num_indicess];
+};
+
+struct NGonBuffer {
     u32 i = std::core::array_index();
-    ThreeDObjsPcEntry entry = parent.entries[i];
+    NGon ngons[parent.mesh_descriptors[i].num_ngons];
 };
 
 struct ThreeDObjsPc {
     u32 num_entries;
     padding[0xC]; // (cursor + 19) & 0xF0; WTF?
     ThreeDObjsPcEntry entries[num_entries];
-    s32 sum = calculate_sum(entries) [[export]];
-    if (sum > 0) {
-        ThreeDObjsPcEntry2 entries2[sum];
-    }
-    ThreeDObjsPcEntry3 entries3[num_entries];
+    u32 sum = calculate_sum(entries) [[export]];
+    MeshDescriptor mesh_descriptors[sum];
+    NGonBuffer ngon_buffers[sum];
 };
 
 ThreeDObjsPc three_d_objs_pc @ 0x0;

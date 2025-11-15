@@ -18,13 +18,13 @@ struct FORRacing {
     u32 b;
     u32 c;
     char name[];
-    $ = 0x00000048;
-    u32 number_of_cars;
+    $ = 0x0000004C;
     char name2[];
     padding[22];
     char name3[];
     $ = 0x00000098;
     u32 money;
+    u32 total_money_earned;
     $ = 0x00000230;
     Car cars[36];
     $ = 0x00000D88;
