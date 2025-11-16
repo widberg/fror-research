@@ -1,8 +1,87 @@
 import fror;
 
-struct VertexBuffer<auto S> {
+struct VertexBuffer<auto S, auto B> {
     Vec3f vertices[S];
     Vec2U16Float uvs[S];
+    if (B) {
+        Vec2U16Float uvs2[S];
+    }
 };
 
-VertexBuffer<602> vertex_buffer @ 0x0;
+struct A {
+    VertexBuffer<602, 1> vertex_buffer_0;
+    VertexBuffer<273, 1> vertex_buffer_2F08;
+    VertexBuffer<119, 1> vertex_buffer_445C;
+    VertexBuffer<616, 1> vertex_buffer_4DA8;
+    VertexBuffer<86, 1> vertex_buffer_7DC8;
+    VertexBuffer<254, 1> vertex_buffer_8480;
+    VertexBuffer<262, 1> vertex_buffer_9858;
+    VertexBuffer<78, 1> vertex_buffer_ACD0;
+    VertexBuffer<19, 1> vertex_buffer_B2E8;
+    VertexBuffer<5, 1> vertex_buffer_B464;
+    VertexBuffer<62, 1> vertex_buffer_B4C8;
+    VertexBuffer<62, 1> vertex_buffer_B9A0;
+    VertexBuffer<5, 1> vertex_buffer_BE78;
+    VertexBuffer<25, 1> vertex_buffer_BEDC;
+    VertexBuffer<17, 1> vertex_buffer_C0D0;
+    VertexBuffer<29, 1> vertex_buffer_C224;
+    VertexBuffer<17, 1> vertex_buffer_C468;
+    VertexBuffer<8, 1> vertex_buffer_C5BC;
+    VertexBuffer<8, 1> vertex_buffer_C63C;
+    VertexBuffer<134, 1> vertex_buffer_C6BC;
+    VertexBuffer<72, 1> vertex_buffer_D134;
+    VertexBuffer<16, 1> vertex_buffer_D6D4;
+    VertexBuffer<186, 1> vertex_buffer_D814;
+    VertexBuffer<41, 1> vertex_buffer_E69C;
+    VertexBuffer<186, 1> vertex_buffer_E9D0;
+    VertexBuffer<40, 1> vertex_buffer_F858;
+    VertexBuffer<186, 1> vertex_buffer_FB78;
+    VertexBuffer<40, 1> vertex_buffer_10A00;
+    VertexBuffer<16, 1> vertex_buffer_10D20;
+    VertexBuffer<25, 1> vertex_buffer_10E60;
+    VertexBuffer<42, 1> vertex_buffer_11054;
+    VertexBuffer<25, 1> vertex_buffer_1139C;
+    VertexBuffer<4, 1> vertex_buffer_11590;
+    VertexBuffer<25, 1> vertex_buffer_115D0;
+    VertexBuffer<36, 1> vertex_buffer_117C4;
+    VertexBuffer<25, 1> vertex_buffer_11A94;
+    VertexBuffer<6, 1> vertex_buffer_11C88;
+    VertexBuffer<4, 1> vertex_buffer_11D00;
+    VertexBuffer<191, 1> vertex_buffer_11D40;
+    VertexBuffer<250, 1> vertex_buffer_12C2C;
+    VertexBuffer<192, 1> vertex_buffer_13FB4;
+    VertexBuffer<250, 1> vertex_buffer_14EB4;
+    VertexBuffer<145, 1> vertex_buffer_1623C;
+    VertexBuffer<146, 1> vertex_buffer_16D90;
+    VertexBuffer<4, 1> vertex_buffer_178F8;
+    VertexBuffer<54, 1> vertex_buffer_17948;
+    VertexBuffer<50, 1> vertex_buffer_17D80;
+    VertexBuffer<64, 1> vertex_buffer_18168;
+    VertexBuffer<4, 1> vertex_buffer_18668;
+    VertexBuffer<96, 1> vertex_buffer_186B8;
+    VertexBuffer<64, 1> vertex_buffer_18E38;
+    VertexBuffer<51, 1> vertex_buffer_19338;
+    VertexBuffer<36, 1> vertex_buffer_19734;
+    VertexBuffer<4, 1> vertex_buffer_19A04;
+    VertexBuffer<85, 1> vertex_buffer_19A54;
+    VertexBuffer<193, 1> vertex_buffer_1A0F8;
+    VertexBuffer<4, 1> vertex_buffer_1B00C;
+    VertexBuffer<4, 1> vertex_buffer_1B05C;
+    VertexBuffer<85, 1> vertex_buffer_1B0AC;
+    VertexBuffer<193, 1> vertex_buffer_1B750;
+    VertexBuffer<4, 1> vertex_buffer_1C664;
+    VertexBuffer<4, 1> vertex_buffer_1C6B4;
+    VertexBuffer<85, 1> vertex_buffer_1C704;
+    VertexBuffer<193, 1> vertex_buffer_1CDA8;
+    VertexBuffer<4, 1> vertex_buffer_1DCBC;
+    VertexBuffer<4, 1> vertex_buffer_1DD0C;
+    VertexBuffer<85, 1> vertex_buffer_1DD5C;
+    VertexBuffer<4, 1> vertex_buffer_1E400;
+    VertexBuffer<193, 1> vertex_buffer_1E450;
+    VertexBuffer<252, 0> vertex_buffer_1F364;
+    VertexBuffer<4, 1> vertex_buffer_20324;
+    VertexBuffer<24, 0> vertex_buffer_20374;
+    VertexBuffer<4, 1> vertex_buffer_204F4;
+};
+
+A a @ 0x0;

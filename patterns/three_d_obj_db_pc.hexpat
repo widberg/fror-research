@@ -1,7 +1,8 @@
 // TODO: Finish this
 
 struct ThreeDObjDbPcEntryEntry {
-    u32 data[23];
+    float floats[15];
+    u32 data[23-15];
 };
 
 struct ThreeDObjDbPcEntryEntry2 {
@@ -24,7 +25,7 @@ struct ThreeDObjDbPcEntryEntry5 {
 };
 
 struct ThreeDObjDbPcEntryEntry6 {
-    u32 a[7];
+    float a[7];
 };
 
 struct ThreeDObjDbPcEntryEntry7 {

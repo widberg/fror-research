@@ -63,13 +63,13 @@ struct MeshDescriptor {
     u32 flags;
     s16 w;
     u16 num_vertices;
-    u32 num_ngons;
-    u8 data[calculate_size(flags, w) - 4 - 2 - 2 - 4];
+    u16 num_ngons;
+    u8 data[calculate_size(flags, w) - 4 - 2 - 2 - 2];
 };
 
 struct NGon {
-    u16 num_indicess;
-    u16 indices[num_indicess];
+    u16 num_indices;
+    u16 indices[num_indices];
 };
 
 struct NGonBuffer {

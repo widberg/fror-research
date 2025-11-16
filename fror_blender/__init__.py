@@ -12,7 +12,6 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from . import auto_load
-from . import importer
 
 auto_load.init()
 

@@ -1,52 +1,29 @@
 from pathlib import Path
-from io import BytesIO
-from dataclasses import dataclass
 
 import bpy
+import bmesh
 from bpy_extras.io_utils import ImportHelper
 from bpy.types import Operator
 
-from .binread import BinaryReader
-from .decompress import decompress
+from .binread import Endianness
+from .decompress import get_decompressed_binary_reader
+from .types import ThreeDObjsPc, VertexBuffer, Mesh
 
 
-@dataclass
-class ThreeDObjsPcEntry:
-    a: list[float]
-    the_first: int
-    m: int
-    n: int
-    o: int
-    p: int
-    the_second: int
-    q: int
-    r: int
-    s: int
-    t: int
-    u: int
-    v: int
-    w: int
-    x: int
-
-    def read_ThreeDObjsPcEntry(binary_reader: BinaryReader, endianness=None):
-        a = binary_reader.read_list(12, BinaryReader.read_float, endianness)
-        the_first = binary_reader.read_u16(endianness)
-        m = binary_reader.read_u16(endianness)
-        n = binary_reader.read_u32(endianness)
-        o = binary_reader.read_u32(endianness)
-        p = binary_reader.read_u32(endianness)
-        the_second = binary_reader.read_u16(endianness)
-        q = binary_reader.read_u16(endianness)
-        r = binary_reader.read_u32(endianness)
-        s = binary_reader.read_u32(endianness)
-        t = binary_reader.read_u32(endianness)
-        u = binary_reader.read_u32(endianness)
-        v = binary_reader.read_u32(endianness)
-        w = binary_reader.read_u32(endianness)
-        x = binary_reader.read_u32(endianness)
-        return ThreeDObjsPcEntry(
-            a, the_first, m, n, o, p, the_second, q, r, s, t, u, v, w, x
-        )
+def triangle_strip_to_indexed_triangles(strip_indices):
+    indexed_triangles = []
+    for i in range(2, len(strip_indices)):
+        if i % 2 == 0:
+            # Even triangle: (v0, v1, v2)
+            indexed_triangles.append(
+                [strip_indices[i - 2], strip_indices[i - 1], strip_indices[i]]
+            )
+        else:
+            # Odd triangle: (v1, v0, v2)
+            indexed_triangles.append(
+                [strip_indices[i - 1], strip_indices[i - 2], strip_indices[i]]
+            )
+    return indexed_triangles
 
 
 class ImportFROR(Operator, ImportHelper):
@@ -76,18 +53,52 @@ class ImportFROR(Operator, ImportHelper):
         if not succeeded:
             return {"CANCELED"}
 
+        endianness = Endianness.LITTLE
+
         with open(three_d_objs_pc_path, "rb") as three_d_objs_pc_file:
-            three_d_objs_pc_binary_reader = BinaryReader(three_d_objs_pc_file)
-            decompressed_data = decompress(three_d_objs_pc_binary_reader)
-            decompressed_data_binary_reader = BinaryReader(BytesIO(decompressed_data))
-            num_entries = decompressed_data_binary_reader.read_u32()
-            print(num_entries)
-            decompressed_data_binary_reader.skip(0xC)
-            entries = decompressed_data_binary_reader.read_list(
-                num_entries,
-                ThreeDObjsPcEntry.read_ThreeDObjsPcEntry
+            decompressed_data_binary_reader = get_decompressed_binary_reader(
+                three_d_objs_pc_file
             )
-            print(entries)
+            three_d_objs_pc = ThreeDObjsPc.binread(
+                decompressed_data_binary_reader, endianness
+            )
+            assert len(decompressed_data_binary_reader.read()) == 0
+
+        with open(three_d_objsp_pc_path, "rb") as three_d_objsp_pc_file:
+            decompressed_data_binary_reader = get_decompressed_binary_reader(
+                three_d_objsp_pc_file
+            )
+            vertex_buffers = []
+            for mesh_descriptor in three_d_objs_pc.mesh_descriptors:
+                # print(f"VertexBuffer<{mesh_descriptor.num_vertices}, {int(mesh_descriptor.w >= 0)}> vertex_buffer_{decompressed_data_binary_reader.tell():X};")
+                vertex_buffers.append(
+                    VertexBuffer.binread(
+                        decompressed_data_binary_reader,
+                        mesh_descriptor.num_vertices,
+                        mesh_descriptor.w,
+                        endianness,
+                    )
+                )
+            assert len(decompressed_data_binary_reader.read()) == 0
+
+        for i in range(len(vertex_buffers)):
+            first_mesh = Mesh(vertex_buffers[i], three_d_objs_pc.ngon_buffers[i])
+
+            verts = first_mesh.vertex_buffer.positions
+            mesh = bpy.data.meshes.new("myBeautifulMesh" + str(i))
+            obj = bpy.data.objects.new(mesh.name, mesh)
+            col = bpy.data.collections["Collection"]
+            col.objects.link(obj)
+            bpy.context.view_layer.objects.active = obj
+
+            verts = first_mesh.vertex_buffer.positions
+            edges = []
+            faces = []
+            for ngon in first_mesh.ngon_buffer.ngons:
+                indexed_triangles = triangle_strip_to_indexed_triangles(ngon.indices)
+                faces.extend(indexed_triangles)
+
+            mesh.from_pydata(verts, edges, faces)
 
         return {"FINISHED"}
 
