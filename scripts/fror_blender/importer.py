@@ -25,13 +25,13 @@ def triangle_strip_to_indexed_triangles(strip_indices):
     return indexed_triangles
 
 
-class ImportFROR(Operator, ImportHelper): # type: ignore
+class ImportFROR(Operator, ImportHelper):  # type: ignore
     bl_idname = "fror_blender.import_fror"
     bl_label = "Import Ford Racing Off Road"
     bl_description = "Load a Ford Racing Off Road 3dobj"
 
     def execute(self, context: bpy.types.Context) -> set[str]:
-        directory_path = Path(self.filepath) # type: ignore
+        directory_path = Path(self.filepath)  # type: ignore
         three_d_obj_db_pc_path = directory_path / "3dobjdb.pc"
         three_d_objs_pc_path = directory_path / "3dobjs.pc"  # compressed
         three_d_objsp_pc_path = directory_path / "3dobjsp.pc"  # compressed
@@ -72,8 +72,7 @@ class ImportFROR(Operator, ImportHelper): # type: ignore
                 vertex_buffers.append(
                     VertexBuffer.binread(
                         decompressed_data_binary_reader,
-                        (mesh_descriptor.num_vertices,
-                        mesh_descriptor.w),
+                        (mesh_descriptor.num_vertices, mesh_descriptor.w),
                         endianness,
                     )
                 )
@@ -83,11 +82,11 @@ class ImportFROR(Operator, ImportHelper): # type: ignore
             first_mesh = Mesh(vertex_buffers[i], three_d_objs_pc.ngon_buffers[i])
 
             verts = first_mesh.vertex_buffer.positions
-            mesh = bpy.data.meshes.new("myBeautifulMesh" + str(i)) # type: ignore
-            obj = bpy.data.objects.new(mesh.name, mesh) # type: ignore
-            col = bpy.data.collections["Collection"] # type: ignore
-            col.objects.link(obj) # type: ignore
-            bpy.context.view_layer.objects.active = obj # type: ignore
+            mesh = bpy.data.meshes.new("myBeautifulMesh" + str(i))  # type: ignore
+            obj = bpy.data.objects.new(mesh.name, mesh)  # type: ignore
+            col = bpy.data.collections["Collection"]  # type: ignore
+            col.objects.link(obj)  # type: ignore
+            bpy.context.view_layer.objects.active = obj  # type: ignore
 
             verts = first_mesh.vertex_buffer.positions
             edges: list[tuple[int, int]] = []
@@ -106,8 +105,8 @@ def menu_func_import_fror(self, context: bpy.types.Context) -> None:
 
 
 def register() -> None:
-    bpy.types.TOPBAR_MT_file_import.append(menu_func_import_fror) # type: ignore
+    bpy.types.TOPBAR_MT_file_import.append(menu_func_import_fror)  # type: ignore
 
 
 def unregister() -> None:
-    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import_fror) # type: ignore
+    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import_fror)  # type: ignore

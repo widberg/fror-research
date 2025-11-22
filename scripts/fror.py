@@ -125,7 +125,6 @@ def main() -> None:
     ExtractNPCSubcommand.pre_setup(subparsers)
 
     args = parser.parse_args()
-    print(args)
     args.func(args)
 
 

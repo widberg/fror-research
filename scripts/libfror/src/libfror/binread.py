@@ -16,10 +16,12 @@ A = typing.TypeVar("A", contravariant=True)
 I = typing.TypeVar("I", contravariant=True)
 
 
-class BinRead(typing.Protocol[T, A]):
-    @staticmethod
+class BinRead(typing.Protocol[A]):
+    @classmethod
     @abc.abstractmethod
-    def binread(binary_reader: "BinaryReader", args: A, endianness: Endianness) -> T: ...
+    def binread(
+        cls, binary_reader: "BinaryReader", args: A, endianness: Endianness
+    ) -> typing.Self: ...
 
 
 class BinaryReader:
@@ -116,6 +118,18 @@ class BinaryReader:
         )
 
 
+class BinWrite(typing.Protocol[A]):
+    @classmethod
+    @abc.abstractmethod
+    def binwrite(
+        cls,
+        binary_writer: "BinaryWriter",
+        value: typing.Self,
+        args: A,
+        endianness: Endianness,
+    ) -> int: ...
+
+
 class BinaryWriter:
     def __init__(self, f: typing.Any):
         self.f = f
@@ -138,3 +152,18 @@ class BinaryWriter:
 
     def write_u32(self, value: int, endianness: Endianness) -> int:
         return self.write_struct(value, "I", endianness)
+
+    def write_u32_args(self, value: int, args: None, endianness: Endianness) -> int:
+        return self.write_u32(value, endianness)
+
+    def write_list(
+        self,
+        values: list[T],
+        write_element: typing.Callable[["BinaryWriter", T, A, Endianness], int],
+        args: A,
+        endianness: Endianness,
+    ) -> int:
+        num_bytes_written = 0
+        for value in values:
+            num_bytes_written += write_element(self, value, args, endianness)
+        return num_bytes_written
