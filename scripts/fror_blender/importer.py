@@ -1,13 +1,12 @@
 from pathlib import Path
 
 import bpy
-import bmesh
 from bpy_extras.io_utils import ImportHelper
 from bpy.types import Operator
 
-from .binread import Endianness
-from .decompress import get_decompressed_binary_reader
-from .types import ThreeDObjsPc, VertexBuffer, Mesh
+from libfror.binread import Endianness
+from libfror.decompress import get_decompressed_binary_reader
+from libfror.types import ThreeDObjsPc, VertexBuffer, Mesh
 
 
 def triangle_strip_to_indexed_triangles(strip_indices):
@@ -26,13 +25,13 @@ def triangle_strip_to_indexed_triangles(strip_indices):
     return indexed_triangles
 
 
-class ImportFROR(Operator, ImportHelper):
+class ImportFROR(Operator, ImportHelper): # type: ignore
     bl_idname = "fror_blender.import_fror"
     bl_label = "Import Ford Racing Off Road"
     bl_description = "Load a Ford Racing Off Road 3dobj"
 
-    def execute(self, context):
-        directory_path = Path(self.filepath)
+    def execute(self, context: bpy.types.Context) -> set[str]:
+        directory_path = Path(self.filepath) # type: ignore
         three_d_obj_db_pc_path = directory_path / "3dobjdb.pc"
         three_d_objs_pc_path = directory_path / "3dobjs.pc"  # compressed
         three_d_objsp_pc_path = directory_path / "3dobjsp.pc"  # compressed
@@ -60,7 +59,7 @@ class ImportFROR(Operator, ImportHelper):
                 three_d_objs_pc_file
             )
             three_d_objs_pc = ThreeDObjsPc.binread(
-                decompressed_data_binary_reader, endianness
+                decompressed_data_binary_reader, None, endianness
             )
             assert len(decompressed_data_binary_reader.read()) == 0
 
@@ -70,12 +69,11 @@ class ImportFROR(Operator, ImportHelper):
             )
             vertex_buffers = []
             for mesh_descriptor in three_d_objs_pc.mesh_descriptors:
-                # print(f"VertexBuffer<{mesh_descriptor.num_vertices}, {int(mesh_descriptor.w >= 0)}> vertex_buffer_{decompressed_data_binary_reader.tell():X};")
                 vertex_buffers.append(
                     VertexBuffer.binread(
                         decompressed_data_binary_reader,
-                        mesh_descriptor.num_vertices,
-                        mesh_descriptor.w,
+                        (mesh_descriptor.num_vertices,
+                        mesh_descriptor.w),
                         endianness,
                     )
                 )
@@ -85,14 +83,14 @@ class ImportFROR(Operator, ImportHelper):
             first_mesh = Mesh(vertex_buffers[i], three_d_objs_pc.ngon_buffers[i])
 
             verts = first_mesh.vertex_buffer.positions
-            mesh = bpy.data.meshes.new("myBeautifulMesh" + str(i))
-            obj = bpy.data.objects.new(mesh.name, mesh)
-            col = bpy.data.collections["Collection"]
-            col.objects.link(obj)
-            bpy.context.view_layer.objects.active = obj
+            mesh = bpy.data.meshes.new("myBeautifulMesh" + str(i)) # type: ignore
+            obj = bpy.data.objects.new(mesh.name, mesh) # type: ignore
+            col = bpy.data.collections["Collection"] # type: ignore
+            col.objects.link(obj) # type: ignore
+            bpy.context.view_layer.objects.active = obj # type: ignore
 
             verts = first_mesh.vertex_buffer.positions
-            edges = []
+            edges: list[tuple[int, int]] = []
             faces = []
             for ngon in first_mesh.ngon_buffer.ngons:
                 indexed_triangles = triangle_strip_to_indexed_triangles(ngon.indices)
@@ -103,13 +101,13 @@ class ImportFROR(Operator, ImportHelper):
         return {"FINISHED"}
 
 
-def menu_func_import_fror(self, context):
+def menu_func_import_fror(self, context: bpy.types.Context) -> None:
     self.layout.operator(ImportFROR.bl_idname, text="Ford Racing Off Road")
 
 
-def register():
-    bpy.types.TOPBAR_MT_file_import.append(menu_func_import_fror)
+def register() -> None:
+    bpy.types.TOPBAR_MT_file_import.append(menu_func_import_fror) # type: ignore
 
 
-def unregister():
-    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import_fror)
+def unregister() -> None:
+    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import_fror) # type: ignore

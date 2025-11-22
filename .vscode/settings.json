@@ -1,0 +1,6 @@
+{
+    "blender.addonFolders": [
+        "scripts/fror_blender"
+    ],
+    "blender.addon.buildTaskName": "wheel"
+}

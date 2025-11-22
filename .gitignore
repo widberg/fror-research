@@ -1,3 +1,7 @@
-/.vscode/
-/data/
 __pycache__
+.mypy_cache
+*.egg-info
+/data/
+/scripts/fror_blender/wheels/
+/scripts/libfror/build/
+/scripts/venv/

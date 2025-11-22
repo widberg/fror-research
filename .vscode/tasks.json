@@ -1,0 +1,44 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "mypy",
+			"command": "${command:python.interpreterPath}",
+			"args": [
+				"-m",
+				"mypy",
+				"--explicit-package-bases",
+				"libfror",
+				"fror.py"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}/scripts/"
+			},
+			"problemMatcher": [],
+			"detail": "Run mypy"
+		},
+		{
+			"type": "shell",
+			"label": "wheel",
+			"command": "${command:python.interpreterPath}",
+			"args": [
+				"-m",
+				"build",
+				"--skip-dependency-check",
+				"--no-isolation",
+				"--wheel",
+				"--outdir",
+				"../fror_blender/wheels"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}/scripts/libfror"
+			},
+			"problemMatcher": [],
+			"detail": "Build libfror wheel",
+			"dependsOn": [
+				"mypy"
+			]
+		}
+	]
+}
