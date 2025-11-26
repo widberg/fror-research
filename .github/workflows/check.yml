@@ -10,7 +10,11 @@ jobs:
         python-version: '3.11'
         cache: 'pip'
     - run: pip install -r scripts/requirements.txt
-    - run: |
-        python -m black --check --diff scripts
-        python -m mypy --explicit-package-bases scripts/libfror
-        python -m mypy --explicit-package-bases scripts/fror.py
+    - name: Black
+      working-directory: ./scripts
+      run: |
+        python -m black --check --diff .
+    - name: mypy
+      working-directory: ./scripts
+      run: |
+        python -m mypy --explicit-package-bases libfror fror.py
