@@ -20,6 +20,48 @@
 		},
 		{
 			"type": "shell",
+			"label": "black",
+			"command": "${command:python.interpreterPath}",
+			"args": [
+				"-m",
+				"black",
+				"--check",
+				"--diff",
+				"."
+			],
+			"options": {
+				"cwd": "${workspaceFolder}/scripts/"
+			},
+			"problemMatcher": [],
+			"detail": "Run black check"
+		},
+		{
+			"type": "shell",
+			"label": "format",
+			"command": "${command:python.interpreterPath}",
+			"args": [
+				"-m",
+				"black",
+				"."
+			],
+			"options": {
+				"cwd": "${workspaceFolder}/scripts/"
+			},
+			"problemMatcher": [],
+			"detail": "Run black format"
+		},
+		{
+			"type": "shell",
+			"label": "check",
+			"problemMatcher": [],
+			"detail": "Run checks",
+			"dependsOn": [
+				"black",
+				"mypy"
+			]
+		},
+		{
+			"type": "shell",
 			"label": "wheel",
 			"command": "${command:python.interpreterPath}",
 			"args": [

@@ -1,5 +1,7 @@
+black
 blender-stubs
 build
 mypy
+pylint
 setuptools
 wheel
