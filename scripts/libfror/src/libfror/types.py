@@ -1,4 +1,6 @@
-from .binread import BinaryReader, Endianness, BinRead
+import abc
+from enum import StrEnum
+from .binread import BinWrite, BinaryReader, BinaryWriter, Endianness, BinRead
 from dataclasses import dataclass
 import typing
 import zlib
@@ -301,3 +303,174 @@ class NPC(BinRead[None]):
             files[entry.name] = decompressed_data
 
         return NPC(files)
+
+
+@dataclass
+class PCGData(BinRead[None]):
+    a: int
+    b: int
+    width: int
+    height: int
+    clip_width: int
+    clip_height: int
+    e: int
+    f: int
+    g: int
+    h: int
+    j: bytes
+    data: bytes
+
+    @classmethod
+    def binread(
+        cls, binary_reader: "BinaryReader", args: None, endianness: Endianness
+    ) -> "PCGData":
+        a = binary_reader.read_u32(endianness)
+        b = binary_reader.read_u32(endianness)
+        width = binary_reader.read_u32(endianness)
+        height = binary_reader.read_u32(endianness)
+        clip_width = binary_reader.read_u32(endianness)
+        clip_height = binary_reader.read_u32(endianness)
+        e = binary_reader.read_u32(endianness)
+        f = binary_reader.read_u32(endianness)
+        g = binary_reader.read_u32(endianness)
+        h = binary_reader.read_u32(endianness)
+        size = binary_reader.read_u32(endianness)
+        j = binary_reader.read(84)
+        data = binary_reader.read(size)
+        return PCGData(
+            a, b, width, height, clip_width, clip_height, e, f, g, h, j, data
+        )
+
+
+@dataclass
+class PCGEntry(BinRead[None]):
+    name: str
+    data: PCGData
+
+    @classmethod
+    def binread(
+        cls, binary_reader: "BinaryReader", args: None, endianness: Endianness
+    ) -> "PCGEntry":
+        offset = binary_reader.read_u32(endianness)
+        name = binary_reader.read_fixed_size_string(0xC)
+        pos = binary_reader.tell()
+        binary_reader.seek(0x00000080 + offset)
+        data = PCGData.binread(binary_reader, None, endianness)
+        binary_reader.seek(pos)
+        return PCGEntry(name, data)
+
+
+@dataclass
+class PCG(BinRead[None]):
+    year_maybe: int
+    checksum_or_time: int
+    a: int
+    entries: list[PCGEntry]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: "BinaryReader", args: None, endianness: Endianness
+    ) -> "PCG":
+        num_entries = binary_reader.read_u32(endianness)
+        year_maybe = binary_reader.read_u32(endianness)
+        checksum_or_time = binary_reader.read_u32(endianness)
+        a = binary_reader.read_u32(endianness)
+        entries = binary_reader.read_list(
+            num_entries, PCGEntry.binread, None, endianness
+        )
+        return PCG(year_maybe, checksum_or_time, a, entries)
+
+
+class DDSHeaderFourCC(StrEnum):
+    BC1 = "DXT1"
+    BC2 = "DXT3"
+
+
+@dataclass
+class DDSHeader(BinWrite[None], BinRead[None]):
+    width: int
+    height: int
+    mip_map_count: int
+    four_cc: DDSHeaderFourCC
+
+    @classmethod
+    def binread(
+        cls, binary_reader: "BinaryReader", args: None, endianness: Endianness
+    ) -> "DDSHeader":
+        id = binary_reader.read_fixed_size_string(4)
+        assert id == "DDS "
+        size = binary_reader.read_u32(endianness)
+        assert size == 0x80
+        flags = binary_reader.read_u32(endianness)
+        height = binary_reader.read_u32(endianness)
+        width = binary_reader.read_u32(endianness)
+        pitchOrLinearSize = binary_reader.read_u32(endianness)
+        depth = binary_reader.read_u32(endianness)
+        mipMapCount = binary_reader.read_u32(endianness)
+        reserved0 = binary_reader.read(44)
+        # begin ddspf
+        ddspf_size = binary_reader.read_u32(endianness)
+        assert ddspf_size == 0x20
+        ddspf_flags = binary_reader.read_u32(endianness)
+        ddspf_fourCC = binary_reader.read_fixed_size_string(4)
+        ddspf_RGBBitCount = binary_reader.read_u32(endianness)
+        ddspf_rBitMask = binary_reader.read_u32(endianness)
+        ddspf_gBitMask = binary_reader.read_u32(endianness)
+        ddspf_bBitMask = binary_reader.read_u32(endianness)
+        ddspf_aBitMask = binary_reader.read_u32(endianness)
+        # end ddspf
+        caps = binary_reader.read_u32(endianness)
+        caps2 = binary_reader.read_u32(endianness)
+        caps3 = binary_reader.read_u32(endianness)
+        caps4 = binary_reader.read_u32(endianness)
+        reserved1 = binary_reader.read_u32(endianness)
+        return DDSHeader(width, height, mipMapCount, DDSHeaderFourCC(ddspf_fourCC))
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "DDSHeader",
+        args: None,
+        endianness: Endianness,
+    ) -> int:
+        number_of_bytes_written = 0
+        number_of_bytes_written += binary_writer.write_string("DDS ")  # id
+        number_of_bytes_written += binary_writer.write_u32(0x7C, endianness)  # size
+        number_of_bytes_written += binary_writer.write_u32(
+            0x000A1007, endianness
+        )  # flags
+        number_of_bytes_written += binary_writer.write_u32(
+            value.height, endianness
+        )  # height
+        number_of_bytes_written += binary_writer.write_u32(
+            value.width, endianness
+        )  # width
+        number_of_bytes_written += binary_writer.write_u32(
+            0x00010000, endianness
+        )  # pitchOrLinearSize
+        number_of_bytes_written += binary_writer.write_u32(1, endianness)  # depth
+        number_of_bytes_written += binary_writer.write_u32(
+            value.mip_map_count, endianness
+        )  # mipMapCount
+        number_of_bytes_written += binary_writer.write(b"\0" * 44)  # reserved0
+        # begin ddspf
+        number_of_bytes_written += binary_writer.write_u32(32, endianness)  # size
+        number_of_bytes_written += binary_writer.write_u32(
+            0x00000004, endianness
+        )  # flags
+        number_of_bytes_written += binary_writer.write_string(value.four_cc)  # fourCC
+        number_of_bytes_written += binary_writer.write_u32(0, endianness)  # RGBBitCount
+        number_of_bytes_written += binary_writer.write_u32(0, endianness)  # rBitMask
+        number_of_bytes_written += binary_writer.write_u32(0, endianness)  # gBitMask
+        number_of_bytes_written += binary_writer.write_u32(0, endianness)  # bBitMask
+        number_of_bytes_written += binary_writer.write_u32(0, endianness)  # aBitMask
+        # end ddspf
+        number_of_bytes_written += binary_writer.write_u32(
+            0x00401008, endianness
+        )  # caps
+        number_of_bytes_written += binary_writer.write_u32(0, endianness)  # caps2
+        number_of_bytes_written += binary_writer.write_u32(0, endianness)  # caps3
+        number_of_bytes_written += binary_writer.write_u32(0, endianness)  # caps4
+        number_of_bytes_written += binary_writer.write_u32(0, endianness)  # reserved1
+        return number_of_bytes_written

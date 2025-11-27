@@ -14,7 +14,7 @@ struct PCGData {
     u8 data[size]; // Bc2
 };
 
-struct PCGEntries {
+struct PCGEntry {
     u32 offset;
     char name[0xC];
     PCGData data @ 0x00000080 + offset;
@@ -25,7 +25,7 @@ struct PCG {
     u32 year_maybe;
     u32 checksum_or_time;
     u32 a;
-    PCGEntries entries[num_entries];
+    PCGEntry entries[num_entries];
 };
 
 PCG pcg @ 0x0;

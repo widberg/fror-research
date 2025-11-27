@@ -7,8 +7,8 @@ from libfror.src.libfror.decompress import (
     compress_and_write,
     get_decompressed_binary_reader,
 )
-from libfror.src.libfror.binread import BinaryReader, Endianness
-from libfror.src.libfror.types import DBF, NPC
+from libfror.src.libfror.binread import BinaryReader, BinaryWriter, Endianness
+from libfror.src.libfror.types import DBF, NPC, PCG, DDSHeader, DDSHeaderFourCC
 
 
 class Subcommand(typing.Protocol):
@@ -77,6 +77,7 @@ class ExtractDBFSubcommand(Subcommand):
     @classmethod
     def execute(cls, args: argparse.Namespace) -> None:
         directory = pathlib.Path(args.directory)
+        directory.mkdir(parents=True, exist_ok=True)
 
         with open(args.dbf, "rb") as dbf:
             binary_reader = BinaryReader(dbf)
@@ -101,6 +102,7 @@ class ExtractNPCSubcommand(Subcommand):
     @classmethod
     def execute(cls, args: argparse.Namespace) -> None:
         directory = pathlib.Path(args.directory)
+        directory.mkdir(parents=True, exist_ok=True)
 
         with open(args.npc, "rb") as npc:
             binary_reader = BinaryReader(npc)
@@ -115,6 +117,51 @@ class ExtractNPCSubcommand(Subcommand):
                     f.write(decompressed_data)
 
 
+class ExtractPCGSubcommand(Subcommand):
+    NAME = "xpcg"
+
+    @classmethod
+    def setup(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("pcg")
+        parser.add_argument("directory")
+
+    @classmethod
+    def execute(cls, args: argparse.Namespace) -> None:
+        directory = pathlib.Path(args.directory)
+        directory.mkdir(parents=True, exist_ok=True)
+
+        with open(args.pcg, "rb") as pcg:
+            decompressed_binary_reader = get_decompressed_binary_reader(pcg)
+            parsed_pcg = PCG.binread(
+                decompressed_binary_reader, None, Endianness.LITTLE
+            )
+            for entry in parsed_pcg.entries:
+                print(entry.name)
+                path = directory / (entry.name + ".dds")
+                with open(path, "wb") as dds:
+                    binary_writer = BinaryWriter(dds)
+                    dds_header = DDSHeader(
+                        entry.data.width, entry.data.height, 1, DDSHeaderFourCC.BC2
+                    )
+                    DDSHeader.binwrite(
+                        binary_writer, dds_header, None, Endianness.LITTLE
+                    )
+                    binary_writer.write(entry.data.data)
+
+
+class CreatePCGSubcommand(Subcommand):
+    NAME = "cpcg"
+
+    @classmethod
+    def setup(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("directory")
+        parser.add_argument("pcg")
+
+    @classmethod
+    def execute(cls, args: argparse.Namespace) -> None:
+        directory = pathlib.Path(args.directory)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="Ford Racing Off Road")
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
@@ -123,6 +170,8 @@ def main() -> None:
     DecompressSubcommand.pre_setup(subparsers)
     ExtractDBFSubcommand.pre_setup(subparsers)
     ExtractNPCSubcommand.pre_setup(subparsers)
+    ExtractPCGSubcommand.pre_setup(subparsers)
+    CreatePCGSubcommand.pre_setup(subparsers)
 
     args = parser.parse_args()
     args.func(args)

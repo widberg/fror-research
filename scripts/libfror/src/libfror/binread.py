@@ -143,6 +143,9 @@ class BinaryWriter:
     def write(self, data: bytes):
         return self.f.write(data)
 
+    def write_string(self, value: str, encoding: str = "ascii") -> int:
+        return self.write(value.encode(encoding))
+
     def write_struct(
         self, value: typing.Any, format: str, endianness: Endianness
     ) -> int:
