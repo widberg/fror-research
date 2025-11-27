@@ -1,3 +1,5 @@
+import std.mem;
+
 struct PCGData {
     u32 a;
     u32 b;
@@ -17,7 +19,7 @@ struct PCGData {
 struct PCGEntry {
     u32 offset;
     char name[0xC];
-    PCGData data @ 0x00000080 + offset;
+    PCGData data @ std::mem::align_to(0x80, 0x10 + parent.num_entries * 0x10) + offset;
 };
 
 struct PCG {

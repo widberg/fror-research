@@ -1,6 +1,6 @@
 import abc
 from enum import StrEnum
-from .binread import BinWrite, BinaryReader, BinaryWriter, Endianness, BinRead
+from .binread import BinWrite, BinaryReader, BinaryWriter, Endianness, BinRead, align_to
 from dataclasses import dataclass
 import typing
 import zlib
@@ -343,18 +343,19 @@ class PCGData(BinRead[None]):
 
 
 @dataclass
-class PCGEntry(BinRead[None]):
+class PCGEntry(BinRead[tuple[int]]):
     name: str
     data: PCGData
 
     @classmethod
     def binread(
-        cls, binary_reader: "BinaryReader", args: None, endianness: Endianness
+        cls, binary_reader: "BinaryReader", args: tuple[int], endianness: Endianness
     ) -> "PCGEntry":
+        (num_entries,) = args
         offset = binary_reader.read_u32(endianness)
         name = binary_reader.read_fixed_size_string(0xC)
         pos = binary_reader.tell()
-        binary_reader.seek(0x00000080 + offset)
+        binary_reader.seek(align_to(0x80, 0x10 + num_entries * 0x10) + offset)
         data = PCGData.binread(binary_reader, None, endianness)
         binary_reader.seek(pos)
         return PCGEntry(name, data)
@@ -376,7 +377,7 @@ class PCG(BinRead[None]):
         checksum_or_time = binary_reader.read_u32(endianness)
         a = binary_reader.read_u32(endianness)
         entries = binary_reader.read_list(
-            num_entries, PCGEntry.binread, None, endianness
+            num_entries, PCGEntry.binread, (num_entries,), endianness
         )
         return PCG(year_maybe, checksum_or_time, a, entries)
 

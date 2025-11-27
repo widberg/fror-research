@@ -170,3 +170,7 @@ class BinaryWriter:
         for value in values:
             num_bytes_written += write_element(self, value, args, endianness)
         return num_bytes_written
+
+
+def align_to(alignment: int, value: int) -> int:
+    return ((value + alignment - 1) // alignment) * alignment
