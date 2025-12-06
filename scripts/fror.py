@@ -191,6 +191,40 @@ class ExtractNPCSubcommand(Subcommand):
                     f.write(decompressed_data)
 
 
+class CreateNPCSubcommand(Subcommand):
+    NAME = "cnpc"
+
+    @dataclass
+    class Args:
+        directory: pathlib.Path
+        npc: pathlib.Path
+
+    @classmethod
+    def setup(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("directory", type=pathlib.Path)
+        parser.add_argument("npc", type=pathlib.Path)
+
+    @classmethod
+    def execute(cls, args: Args) -> None:
+        # TODO: This doesn't order the files like in the original
+        files = dict(
+            sorted(
+                [
+                    (
+                        str(path.relative_to(args.directory).with_suffix("")),
+                        path.read_bytes(),
+                    )
+                    for path in args.directory.rglob("*")
+                    if not path.is_dir()
+                ]
+            )
+        )
+        npc = NPC(files)
+        with open(args.npc, "wb") as npc_file:
+            binary_writer = BinaryWriter(npc_file)
+            NPC.binwrite(binary_writer, npc, None, Endianness.LITTLE)
+
+
 class PCGEntryManifest(BaseModel):
     name: str
     a: int
@@ -349,6 +383,7 @@ def main() -> None:
     ExtractDBFSubcommand.pre_setup(subparsers)
     CreateDBFSubcommand.pre_setup(subparsers)
     ExtractNPCSubcommand.pre_setup(subparsers)
+    CreateNPCSubcommand.pre_setup(subparsers)
     ExtractPCGSubcommand.pre_setup(subparsers)
     CreatePCGSubcommand.pre_setup(subparsers)
 

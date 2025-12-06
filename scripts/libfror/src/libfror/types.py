@@ -301,7 +301,39 @@ class DBF(BinRead, BinWrite):
 
 
 @dataclass
-class NPC(BinRead):
+class NPCEntry(BinRead):
+    name: str
+    compressed_size: int
+    offset: int
+    decompressed_size: int
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> NPCEntry:
+        name = binary_reader.read_fixed_size_string(64)
+        compressed_size = binary_reader.read_u32(endianness)
+        assert compressed_size == 0
+        offset = binary_reader.read_u32(endianness)
+        decompressed_size = binary_reader.read_u32(endianness)
+        return NPCEntry(name, compressed_size, offset, decompressed_size)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "NPCEntry",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_fixed_size_string(value.name, 64)
+        binary_writer.write_u32(value.compressed_size, endianness)
+        binary_writer.write_u32(value.offset, endianness)
+        binary_writer.write_u32(value.decompressed_size, endianness)
+
+
+@dataclass
+class NPC(BinRead, BinWrite):
     files: dict[str, bytes]
 
     @classmethod
@@ -309,24 +341,6 @@ class NPC(BinRead):
         cls, binary_reader: BinaryReader, args: None, endianness: Endianness
     ) -> "NPC":
         num_entries = binary_reader.read_u32(endianness)
-
-        @dataclass
-        class NPCEntry(BinRead):
-            name: str
-            compressed_size: int
-            offset: int
-            decompressed_size: int
-
-            @classmethod
-            def binread(
-                cls, binary_reader: BinaryReader, args: None, endianness: Endianness
-            ) -> NPCEntry:
-                name = binary_reader.read_fixed_size_string(64)
-                compressed_size = binary_reader.read_u32(endianness)
-                assert compressed_size == 0
-                offset = binary_reader.read_u32(endianness)
-                decompressed_size = binary_reader.read_u32(endianness)
-                return NPCEntry(name, compressed_size, offset, decompressed_size)
 
         entries = binary_reader.read_list(
             num_entries, NPCEntry.binread, None, endianness
@@ -345,6 +359,33 @@ class NPC(BinRead):
             files[entry.name] = decompressed_data
 
         return NPC(files)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "NPC",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_u32(len(value.files), endianness)
+
+        entries_pos = binary_writer.tell()
+        data_offset = 4 + len(value.files) * (64 + 4 * 3)
+        binary_writer.seek(data_offset)
+
+        entries = []
+        for name, data in value.files.items():
+            offset = binary_writer.tell() - data_offset
+            compressed_size = 0
+            decompressed_size = len(data)
+
+            binary_writer.write(data)
+
+            entries.append(NPCEntry(name, compressed_size, offset, decompressed_size))
+
+        binary_writer.seek(entries_pos)
+        binary_writer.write_list(entries, NPCEntry.binwrite, None, endianness)
 
 
 @dataclass
