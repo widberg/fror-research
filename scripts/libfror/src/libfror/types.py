@@ -1,4 +1,4 @@
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 import os
 from .binread import BinWrite, BinaryReader, BinaryWriter, Endianness, BinRead, align_to
 from dataclasses import dataclass
@@ -620,3 +620,170 @@ class DDSHeader(BinWrite, BinRead):
         binary_writer.write_u32(0, endianness)  # caps3
         binary_writer.write_u32(0, endianness)  # caps4
         binary_writer.write_u32(0, endianness)  # reserved1
+
+
+@dataclass
+class TexturesPcEntry(BinRead):
+    data: bytes
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "TexturesPcEntry":
+        data = binary_reader.read(0x400)
+        return TexturesPcEntry(data)
+
+
+@dataclass
+class TexturesPcEntry2(BinRead):
+    data: bytes
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "TexturesPcEntry2":
+        data = binary_reader.read(0x40)
+        return TexturesPcEntry2(data)
+
+
+@dataclass
+class TexturesPcEntry3(BinRead):
+    data: bytes
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "TexturesPcEntry3":
+        data = binary_reader.read(0x400)
+        return TexturesPcEntry3(data)
+
+
+class TexturesPcEntry4Encoding(IntEnum):
+    BC1 = 1
+    BC2 = 3
+
+    @classmethod
+    def binread(
+        cls, binary_reader: "BinaryReader", args: None, endianness: Endianness
+    ) -> "TexturesPcEntry4Encoding":
+        return TexturesPcEntry4Encoding(binary_reader.read_u32(endianness))
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "TexturesPcEntry4Encoding",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_u32(value, endianness)
+
+    def to_dds_four_cc(self) -> DDSHeaderFourCC:
+        match self:
+            case TexturesPcEntry4Encoding.BC1:
+                return DDSHeaderFourCC.BC1
+            case TexturesPcEntry4Encoding.BC2:
+                return DDSHeaderFourCC.BC2
+            case _:
+                assert False
+
+
+def calculate_dds_data_size_internal(
+    width: int, height: int, encoding: TexturesPcEntry4Encoding
+) -> int:
+    match encoding:
+        case TexturesPcEntry4Encoding.BC1:
+            return width * height // 2
+        case TexturesPcEntry4Encoding.BC2:
+            return width * height
+        case _:
+            assert False
+
+
+def calculate_dds_data_size(
+    width: int, height: int, num_mipmaps: int, encoding: TexturesPcEntry4Encoding
+) -> int:
+    size = 0
+    calculated_num_mipmaps = 0
+
+    size += calculate_dds_data_size_internal(width, height, encoding)
+    width >>= 1
+    height >>= 1
+    while width >= 4 and height >= 4 and num_mipmaps != 0:
+        size += calculate_dds_data_size_internal(width, height, encoding)
+        width >>= 1
+        height >>= 1
+        calculated_num_mipmaps += 1
+    assert calculated_num_mipmaps == num_mipmaps
+    return size
+
+
+@dataclass
+class TexturesPcEntry4(BinRead):
+    flags: int
+    b: int
+    name: str
+    encoding: TexturesPcEntry4Encoding
+    num_mipmaps: int
+    e: float
+    width: int
+    height: int
+    h: int
+    i: int
+    j: int
+    data: bytes
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "TexturesPcEntry4":
+        flags = binary_reader.read_u32(endianness)
+        b = binary_reader.read_u32(endianness)
+        name_size = binary_reader.read_u32(endianness)
+        name = binary_reader.read_fixed_size_string(name_size)
+        encoding = TexturesPcEntry4Encoding.binread(binary_reader, None, endianness)
+        num_mipmaps = binary_reader.read_u32(endianness)
+        e = binary_reader.read_float(endianness)
+        width = binary_reader.read_u32(endianness)
+        height = binary_reader.read_u32(endianness)
+        h = binary_reader.read_u32(endianness)
+        i = binary_reader.read_s32(endianness)
+        j = binary_reader.read_s32(endianness)
+        data = binary_reader.read(
+            calculate_dds_data_size(width, height, num_mipmaps, encoding)
+        )
+        return TexturesPcEntry4(
+            flags, b, name, encoding, num_mipmaps, e, width, height, h, i, j, data
+        )
+
+
+@dataclass
+class TexturesPc(BinRead):
+    entries: list[TexturesPcEntry]
+    entries2: list[TexturesPcEntry2]
+    entries3: list[TexturesPcEntry3]
+    b: int
+    entries4: list[TexturesPcEntry4]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "TexturesPc":
+        num_entries = binary_reader.read_u32(endianness)
+        num_entries2 = binary_reader.read_u32(endianness)
+        num_entries3 = binary_reader.read_u32(endianness)
+        entries = binary_reader.read_list(
+            num_entries, TexturesPcEntry.binread, None, endianness
+        )
+        entries2 = binary_reader.read_list(
+            num_entries2, TexturesPcEntry2.binread, None, endianness
+        )
+        entries3 = binary_reader.read_list(
+            num_entries3, TexturesPcEntry3.binread, None, endianness
+        )
+        num_entries4 = binary_reader.read_u32(endianness)
+        b = binary_reader.read_u32(endianness)
+        entries4 = binary_reader.read_list(
+            num_entries4, TexturesPcEntry4.binread, None, endianness
+        )
+        return TexturesPc(entries, entries2, entries3, b, entries4)
