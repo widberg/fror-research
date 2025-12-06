@@ -146,6 +146,14 @@ class BinaryWriter:
     def write_string(self, value: str, encoding: str = "ascii") -> None:
         self.write(value.encode(encoding))
 
+    def write_fixed_size_string(
+        self, value: str, size: int, encoding: str = "ascii"
+    ) -> None:
+        data = value.encode(encoding)
+        assert len(data) <= size
+        self.write(data)
+        self.write(b"\0" * (size - len(data)))
+
     def write_struct(
         self, value: typing.Any, format: str, endianness: Endianness
     ) -> None:

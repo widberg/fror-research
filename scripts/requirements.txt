@@ -1,7 +1,9 @@
+annotated-types
 black
 blender-stubs
 build
 mypy
+pydantic
 pylint
 setuptools
 wheel

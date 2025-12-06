@@ -1,4 +1,5 @@
 from enum import StrEnum
+import os
 from .binread import BinWrite, BinaryReader, BinaryWriter, Endianness, BinRead, align_to
 from dataclasses import dataclass
 import zlib
@@ -339,15 +340,38 @@ class PCGData(BinRead):
             a, b, width, height, clip_width, clip_height, e, f, g, h, j, data
         )
 
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "PCGData",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_u32(value.a, endianness)
+        binary_writer.write_u32(value.b, endianness)
+        binary_writer.write_u32(value.width, endianness)
+        binary_writer.write_u32(value.height, endianness)
+        binary_writer.write_u32(value.clip_width, endianness)
+        binary_writer.write_u32(value.clip_height, endianness)
+        binary_writer.write_u32(value.e, endianness)
+        binary_writer.write_u32(value.f, endianness)
+        binary_writer.write_u32(value.g, endianness)
+        binary_writer.write_u32(value.h, endianness)
+        binary_writer.write_u32(len(value.data), endianness)
+        assert len(value.j) == 84
+        binary_writer.write(value.j)
+        binary_writer.write(value.data)
+
 
 @dataclass
-class PCGEntry(BinRead):
+class PCGEntry(BinRead, BinWrite):
     name: str
     data: PCGData
 
     @classmethod
     def binread(
-        cls, binary_reader: "BinaryReader", args: tuple[int], endianness: Endianness
+        cls, binary_reader: BinaryReader, args: tuple[int], endianness: Endianness
     ) -> "PCGEntry":
         (num_entries,) = args
         offset = binary_reader.read_u32(endianness)
@@ -358,9 +382,29 @@ class PCGEntry(BinRead):
         binary_reader.seek(pos)
         return PCGEntry(name, data)
 
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "PCGEntry",
+        args: tuple[int],
+        endianness: Endianness,
+    ) -> None:
+        (num_entries,) = args
+        end_of_header = align_to(0x80, 0x10 + num_entries * 0x10)
+        entry_pos = binary_writer.tell()
+        binary_writer.seek(0, os.SEEK_END)
+        if binary_writer.tell() < end_of_header:
+            binary_writer.seek(end_of_header)
+        offset = binary_writer.tell() - end_of_header
+        PCGData.binwrite(binary_writer, value.data, None, endianness)
+        binary_writer.seek(entry_pos)
+        binary_writer.write_u32(offset, endianness)
+        binary_writer.write_fixed_size_string(value.name, 0xC)
+
 
 @dataclass
-class PCG(BinRead):
+class PCG(BinRead, BinWrite):
     year_maybe: int
     checksum_or_time: int
     a: int
@@ -368,7 +412,7 @@ class PCG(BinRead):
 
     @classmethod
     def binread(
-        cls, binary_reader: "BinaryReader", args: None, endianness: Endianness
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
     ) -> "PCG":
         num_entries = binary_reader.read_u32(endianness)
         year_maybe = binary_reader.read_u32(endianness)
@@ -379,8 +423,25 @@ class PCG(BinRead):
         )
         return PCG(year_maybe, checksum_or_time, a, entries)
 
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "PCG",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_u32(len(value.entries), endianness)  # num_entries
+        binary_writer.write_u32(value.year_maybe, endianness)  # year_maybe
+        binary_writer.write_u32(value.checksum_or_time, endianness)  # checksum_or_time
+        binary_writer.write_u32(value.a, endianness)  # a
+        binary_writer.write_list(
+            value.entries, PCGEntry.binwrite, (len(value.entries),), endianness
+        )
 
-class DDSHeaderFourCC(BinWrite, BinRead, StrEnum):
+
+# TODO: Why can't I use BinWrite/BinRead here?
+class DDSHeaderFourCC(StrEnum):
     BC1 = "DXT1"
     BC2 = "DXT3"
 
@@ -415,7 +476,7 @@ class DDSHeader(BinWrite, BinRead):
         id = binary_reader.read_fixed_size_string(4)
         assert id == "DDS "
         size = binary_reader.read_u32(endianness)
-        assert size == 0x80
+        assert size == 0x7C
         flags = binary_reader.read_u32(endianness)
         height = binary_reader.read_u32(endianness)
         width = binary_reader.read_u32(endianness)

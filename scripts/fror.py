@@ -1,15 +1,27 @@
 import argparse
 from dataclasses import dataclass
+from io import BytesIO
 import pathlib
 import typing
 import abc
+
+from annotated_types import Len
+from pydantic import BaseModel
 
 from libfror.src.libfror.decompress import (
     compress_and_write,
     get_decompressed_binary_reader,
 )
 from libfror.src.libfror.binread import BinaryReader, BinaryWriter, Endianness
-from libfror.src.libfror.types import DBF, NPC, PCG, DDSHeader, DDSHeaderFourCC
+from libfror.src.libfror.types import (
+    DBF,
+    NPC,
+    PCG,
+    DDSHeader,
+    DDSHeaderFourCC,
+    PCGData,
+    PCGEntry,
+)
 
 
 A = typing.TypeVar("A")
@@ -34,7 +46,11 @@ class Subcommand(typing.Protocol[A]):
 
     @classmethod
     def pre_execute(cls, args: argparse.Namespace) -> None:
-        cls.execute(cls.Args(**vars(args)))
+        # TODO: WTF!?
+        args_dict = args.__dict__
+        del args_dict["subcommand"]
+        del args_dict["klass"]
+        cls.execute(cls.Args(**args_dict))
 
     @classmethod
     @abc.abstractmethod
@@ -145,6 +161,79 @@ class ExtractNPCSubcommand(Subcommand):
                     f.write(decompressed_data)
 
 
+class PCGEntryManifest(BaseModel):
+    name: str
+    a: int
+    b: int
+    clip_width: int
+    clip_height: int
+    e: int
+    f: int
+    g: int
+    h: int
+    j: typing.Annotated[list[int], Len(min_length=84, max_length=84)]
+
+    @staticmethod
+    def from_pcg_entry(pcg_entry: PCGEntry) -> "PCGEntryManifest":
+        return PCGEntryManifest(
+            name=pcg_entry.name,
+            a=pcg_entry.data.a,
+            b=pcg_entry.data.b,
+            clip_width=pcg_entry.data.clip_width,
+            clip_height=pcg_entry.data.clip_height,
+            e=pcg_entry.data.e,
+            f=pcg_entry.data.f,
+            g=pcg_entry.data.g,
+            h=pcg_entry.data.h,
+            j=list(pcg_entry.data.j),
+        )
+
+    def to_pcg_entry(self) -> PCGEntry:
+        return PCGEntry(
+            self.name,
+            PCGData(
+                self.a,
+                self.b,
+                0,
+                0,
+                self.clip_width,
+                self.clip_height,
+                self.e,
+                self.f,
+                self.g,
+                self.h,
+                bytes(self.j),
+                b"",
+            ),
+        )
+
+
+class PCGManifest(BaseModel):
+    year_maybe: int
+    checksum_or_time: int
+    a: int
+    entries: list[PCGEntryManifest]
+
+    @staticmethod
+    def from_pcg(pcg: PCG) -> "PCGManifest":
+        return PCGManifest(
+            year_maybe=pcg.year_maybe,
+            checksum_or_time=pcg.checksum_or_time,
+            a=pcg.a,
+            entries=[
+                PCGEntryManifest.from_pcg_entry(pcg_entry) for pcg_entry in pcg.entries
+            ],
+        )
+
+    def to_pcg(self) -> PCG:
+        return PCG(
+            self.year_maybe,
+            self.checksum_or_time,
+            self.a,
+            [pcg_entry_manifest.to_pcg_entry() for pcg_entry_manifest in self.entries],
+        )
+
+
 class ExtractPCGSubcommand(Subcommand):
     NAME = "xpcg"
 
@@ -167,6 +256,12 @@ class ExtractPCGSubcommand(Subcommand):
             parsed_pcg = PCG.binread(
                 decompressed_binary_reader, None, Endianness.LITTLE
             )
+
+            pcg_manifest = PCGManifest.from_pcg(parsed_pcg)
+            pcg_manifest_json = pcg_manifest.model_dump_json(indent=2, round_trip=True)
+
+            (args.directory / "manifest.json").write_text(pcg_manifest_json)
+
             for entry in parsed_pcg.entries:
                 print(entry.name)
                 path = args.directory / (entry.name + ".dds")
@@ -195,7 +290,25 @@ class CreatePCGSubcommand(Subcommand):
         parser.add_argument("pcg", type=pathlib.Path)
 
     @classmethod
-    def execute(cls, args: Args) -> None: ...
+    def execute(cls, args: Args) -> None:
+        pcg_manifest_json = (args.directory / "manifest.json").read_text()
+        pcg_manifest = PCGManifest.model_validate_json(pcg_manifest_json)
+        pcg = pcg_manifest.to_pcg()
+
+        for entry in pcg.entries:
+            with open(args.directory / (entry.name + ".dds"), "rb") as dds:
+                binary_reader = BinaryReader(dds)
+                dds_header = DDSHeader.binread(binary_reader, None, Endianness.LITTLE)
+                data = binary_reader.read()
+                entry.data.width = dds_header.width
+                entry.data.height = dds_header.height
+                entry.data.data = data
+
+        bytes_io = BytesIO()
+        binary_writer = BinaryWriter(bytes_io)
+        PCG.binwrite(binary_writer, pcg, None, Endianness.LITTLE)
+        with open(args.pcg, "wb") as pcg_file:
+            compress_and_write(bytes_io.getvalue(), pcg_file)
 
 
 def main() -> None:
