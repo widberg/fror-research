@@ -1,13 +1,11 @@
-import abc
 from enum import StrEnum
 from .binread import BinWrite, BinaryReader, BinaryWriter, Endianness, BinRead, align_to
 from dataclasses import dataclass
-import typing
 import zlib
 
 
 @dataclass
-class ThreeDObjsPcEntry(BinRead[None]):
+class ThreeDObjsPcEntry(BinRead):
     a: list[float]
     the_first: int
     m: int
@@ -86,7 +84,7 @@ def calculate_size(flags: int, w: int) -> int:
 
 
 @dataclass
-class MeshDescriptor(BinRead[None]):
+class MeshDescriptor(BinRead):
     flags: int
     w: int
     num_vertices: int
@@ -106,7 +104,7 @@ class MeshDescriptor(BinRead[None]):
 
 
 @dataclass
-class NGon(BinRead[None]):
+class NGon(BinRead):
     indices: list[int]
 
     @classmethod
@@ -121,7 +119,7 @@ class NGon(BinRead[None]):
 
 
 @dataclass
-class NGonBuffer(BinRead[tuple[MeshDescriptor, None]]):
+class NGonBuffer(BinRead):
     ngons: list[NGon]
 
     @classmethod
@@ -139,7 +137,7 @@ class NGonBuffer(BinRead[tuple[MeshDescriptor, None]]):
 
 
 @dataclass
-class ThreeDObjsPc(BinRead[None]):
+class ThreeDObjsPc(BinRead):
     entries: list[ThreeDObjsPcEntry]
     mesh_descriptors: list[MeshDescriptor]
     ngon_buffers: list[NGonBuffer]
@@ -169,7 +167,7 @@ def read_u16_float(binary_reader: BinaryReader, args: None, endianness: Endianne
 
 
 @dataclass
-class VertexBuffer(BinRead[tuple[int, int]]):
+class VertexBuffer(BinRead):
     positions: list[tuple[float, float, float]]
     uvs: list[tuple[float, float]]
     uvs2: list[tuple[float, float]]
@@ -211,7 +209,7 @@ class Mesh:
 
 
 @dataclass
-class DBF(BinRead[None]):
+class DBF(BinRead):
     files: dict[str, bytes]
 
     @classmethod
@@ -221,7 +219,7 @@ class DBF(BinRead[None]):
         num_entries = binary_reader.read_u32(endianness)
 
         @dataclass
-        class DBFEntry(BinRead[None]):
+        class DBFEntry(BinRead):
             name: str
             offset: int
             compressed_size: int
@@ -259,7 +257,7 @@ class DBF(BinRead[None]):
 
 
 @dataclass
-class NPC(BinRead[None]):
+class NPC(BinRead):
     files: dict[str, bytes]
 
     @classmethod
@@ -269,7 +267,7 @@ class NPC(BinRead[None]):
         num_entries = binary_reader.read_u32(endianness)
 
         @dataclass
-        class NPCEntry(BinRead[None]):
+        class NPCEntry(BinRead):
             name: str
             compressed_size: int
             offset: int
@@ -306,7 +304,7 @@ class NPC(BinRead[None]):
 
 
 @dataclass
-class PCGData(BinRead[None]):
+class PCGData(BinRead):
     a: int
     b: int
     width: int
@@ -343,7 +341,7 @@ class PCGData(BinRead[None]):
 
 
 @dataclass
-class PCGEntry(BinRead[tuple[int]]):
+class PCGEntry(BinRead):
     name: str
     data: PCGData
 
@@ -362,7 +360,7 @@ class PCGEntry(BinRead[tuple[int]]):
 
 
 @dataclass
-class PCG(BinRead[None]):
+class PCG(BinRead):
     year_maybe: int
     checksum_or_time: int
     a: int
@@ -382,7 +380,7 @@ class PCG(BinRead[None]):
         return PCG(year_maybe, checksum_or_time, a, entries)
 
 
-class DDSHeaderFourCC(BinWrite[None], BinRead[None], StrEnum):
+class DDSHeaderFourCC(BinWrite, BinRead, StrEnum):
     BC1 = "DXT1"
     BC2 = "DXT3"
 
@@ -404,7 +402,7 @@ class DDSHeaderFourCC(BinWrite[None], BinRead[None], StrEnum):
 
 
 @dataclass
-class DDSHeader(BinWrite[None], BinRead[None]):
+class DDSHeader(BinWrite, BinRead):
     width: int
     height: int
     mip_map_count: int

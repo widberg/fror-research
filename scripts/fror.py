@@ -1,4 +1,5 @@
 import argparse
+from dataclasses import dataclass
 import pathlib
 import typing
 import abc
@@ -11,15 +12,20 @@ from libfror.src.libfror.binread import BinaryReader, BinaryWriter, Endianness
 from libfror.src.libfror.types import DBF, NPC, PCG, DDSHeader, DDSHeaderFourCC
 
 
-class Subcommand(typing.Protocol):
+A = typing.TypeVar("A")
+
+
+class Subcommand(typing.Protocol[A]):
     NAME: str
+
+    Args: typing.Type[A]
 
     @classmethod
     def pre_setup(
         cls, subparsers: argparse._SubParsersAction[argparse.ArgumentParser]
     ) -> None:
         parser = subparsers.add_parser(cls.NAME)
-        parser.set_defaults(func=cls.execute)
+        parser.set_defaults(klass=cls)
         cls.setup(parser)
 
     @classmethod
@@ -27,12 +33,21 @@ class Subcommand(typing.Protocol):
     def setup(cls, parser: argparse.ArgumentParser) -> None: ...
 
     @classmethod
+    def pre_execute(cls, args: argparse.Namespace) -> None:
+        cls.execute(cls.Args(**vars(args)))
+
+    @classmethod
     @abc.abstractmethod
-    def execute(cls, args: argparse.Namespace) -> None: ...
+    def execute(cls, args: A) -> None: ...
 
 
 class CompressSubcommand(Subcommand):
     NAME = "compress"
+
+    @dataclass
+    class Args:
+        decompressed: pathlib.Path
+        compressed: pathlib.Path
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
@@ -40,7 +55,7 @@ class CompressSubcommand(Subcommand):
         parser.add_argument("compressed", type=pathlib.Path)
 
     @classmethod
-    def execute(cls, args: argparse.Namespace) -> None:
+    def execute(cls, args: Args) -> None:
         with open(args.decompressed, "rb") as decompressed:
             decompressed_data = decompressed.read()
 
@@ -51,13 +66,18 @@ class CompressSubcommand(Subcommand):
 class DecompressSubcommand(Subcommand):
     NAME = "decompress"
 
+    @dataclass
+    class Args:
+        compressed: pathlib.Path
+        decompressed: pathlib.Path
+
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("compressed", type=pathlib.Path)
         parser.add_argument("decompressed", type=pathlib.Path)
 
     @classmethod
-    def execute(cls, args: argparse.Namespace) -> None:
+    def execute(cls, args: Args) -> None:
         with open(args.compressed, "rb") as compressed:
             decompressed_binary_reader = get_decompressed_binary_reader(compressed)
             decompressed_data = decompressed_binary_reader.read()
@@ -69,13 +89,18 @@ class DecompressSubcommand(Subcommand):
 class ExtractDBFSubcommand(Subcommand):
     NAME = "xdbf"
 
+    @dataclass
+    class Args:
+        dbf: pathlib.Path
+        directory: pathlib.Path
+
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("dbf", type=pathlib.Path)
         parser.add_argument("directory", type=pathlib.Path)
 
     @classmethod
-    def execute(cls, args: argparse.Namespace) -> None:
+    def execute(cls, args: Args) -> None:
         args.directory.mkdir(parents=True, exist_ok=True)
 
         with open(args.dbf, "rb") as dbf:
@@ -93,13 +118,18 @@ class ExtractDBFSubcommand(Subcommand):
 class ExtractNPCSubcommand(Subcommand):
     NAME = "xnpc"
 
+    @dataclass
+    class Args:
+        npc: pathlib.Path
+        directory: pathlib.Path
+
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("npc", type=pathlib.Path)
         parser.add_argument("directory", type=pathlib.Path)
 
     @classmethod
-    def execute(cls, args: argparse.Namespace) -> None:
+    def execute(cls, args: Args) -> None:
         args.directory.mkdir(parents=True, exist_ok=True)
 
         with open(args.npc, "rb") as npc:
@@ -118,13 +148,18 @@ class ExtractNPCSubcommand(Subcommand):
 class ExtractPCGSubcommand(Subcommand):
     NAME = "xpcg"
 
+    @dataclass
+    class Args:
+        pcg: pathlib.Path
+        directory: pathlib.Path
+
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("pcg", type=pathlib.Path)
         parser.add_argument("directory", type=pathlib.Path)
 
     @classmethod
-    def execute(cls, args: argparse.Namespace) -> None:
+    def execute(cls, args: Args) -> None:
         args.directory.mkdir(parents=True, exist_ok=True)
 
         with open(args.pcg, "rb") as pcg:
@@ -149,13 +184,18 @@ class ExtractPCGSubcommand(Subcommand):
 class CreatePCGSubcommand(Subcommand):
     NAME = "cpcg"
 
+    @dataclass
+    class Args:
+        directory: pathlib.Path
+        pcg: pathlib.Path
+
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("directory", type=pathlib.Path)
         parser.add_argument("pcg", type=pathlib.Path)
 
     @classmethod
-    def execute(cls, args: argparse.Namespace) -> None: ...
+    def execute(cls, args: Args) -> None: ...
 
 
 def main() -> None:
@@ -170,7 +210,7 @@ def main() -> None:
     CreatePCGSubcommand.pre_setup(subparsers)
 
     args = parser.parse_args()
-    args.func(args)
+    args.klass.pre_execute(args)
 
 
 if __name__ == "__main__":
