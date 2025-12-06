@@ -131,6 +131,36 @@ class ExtractDBFSubcommand(Subcommand):
                     f.write(decompressed_data)
 
 
+class CreateDBFSubcommand(Subcommand):
+    NAME = "cdbf"
+
+    @dataclass
+    class Args:
+        directory: pathlib.Path
+        dbf: pathlib.Path
+
+    @classmethod
+    def setup(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("directory", type=pathlib.Path)
+        parser.add_argument("dbf", type=pathlib.Path)
+
+    @classmethod
+    def execute(cls, args: Args) -> None:
+        files = dict(
+            sorted(
+                [
+                    (str(path.relative_to(args.directory)), path.read_bytes())
+                    for path in args.directory.rglob("*")
+                    if not path.is_dir()
+                ]
+            )
+        )
+        dbf = DBF(files)
+        with open(args.dbf, "wb") as dbf_file:
+            binary_writer = BinaryWriter(dbf_file)
+            DBF.binwrite(binary_writer, dbf, None, Endianness.LITTLE)
+
+
 class ExtractNPCSubcommand(Subcommand):
     NAME = "xnpc"
 
@@ -263,7 +293,6 @@ class ExtractPCGSubcommand(Subcommand):
             (args.directory / "manifest.json").write_text(pcg_manifest_json)
 
             for entry in parsed_pcg.entries:
-                print(entry.name)
                 path = args.directory / (entry.name + ".dds")
                 with open(path, "wb") as dds:
                     binary_writer = BinaryWriter(dds)
@@ -318,6 +347,7 @@ def main() -> None:
     CompressSubcommand.pre_setup(subparsers)
     DecompressSubcommand.pre_setup(subparsers)
     ExtractDBFSubcommand.pre_setup(subparsers)
+    CreateDBFSubcommand.pre_setup(subparsers)
     ExtractNPCSubcommand.pre_setup(subparsers)
     ExtractPCGSubcommand.pre_setup(subparsers)
     CreatePCGSubcommand.pre_setup(subparsers)

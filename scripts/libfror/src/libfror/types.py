@@ -210,7 +210,38 @@ class Mesh:
 
 
 @dataclass
-class DBF(BinRead):
+class DBFEntry(BinRead):
+    name: str
+    offset: int
+    compressed_size: int
+    decompressed_size: int
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> DBFEntry:
+        name = binary_reader.read_fixed_size_string(256)
+        offset = binary_reader.read_u32(endianness)
+        compressed_size = binary_reader.read_u32(endianness)
+        decompressed_size = binary_reader.read_u32(endianness)
+        return DBFEntry(name, offset, compressed_size, decompressed_size)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "DBFEntry",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_fixed_size_string(value.name, 256)
+        binary_writer.write_u32(value.offset, endianness)
+        binary_writer.write_u32(value.compressed_size, endianness)
+        binary_writer.write_u32(value.decompressed_size, endianness)
+
+
+@dataclass
+class DBF(BinRead, BinWrite):
     files: dict[str, bytes]
 
     @classmethod
@@ -218,23 +249,6 @@ class DBF(BinRead):
         cls, binary_reader: BinaryReader, args: None, endianness: Endianness
     ) -> "DBF":
         num_entries = binary_reader.read_u32(endianness)
-
-        @dataclass
-        class DBFEntry(BinRead):
-            name: str
-            offset: int
-            compressed_size: int
-            decompressed_size: int
-
-            @classmethod
-            def binread(
-                cls, binary_reader: BinaryReader, args: None, endianness: Endianness
-            ) -> DBFEntry:
-                name = binary_reader.read_fixed_size_string(256)
-                offset = binary_reader.read_u32(endianness)
-                compressed_size = binary_reader.read_u32(endianness)
-                decompressed_size = binary_reader.read_u32(endianness)
-                return DBFEntry(name, offset, compressed_size, decompressed_size)
 
         entries = binary_reader.read_list(
             num_entries, DBFEntry.binread, None, endianness
@@ -255,6 +269,35 @@ class DBF(BinRead):
             files[entry.name] = decompressed_data
 
         return DBF(files)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "DBF",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_u32(len(value.files), endianness)
+
+        entries_pos = binary_writer.tell()
+        data_offset = 4 + len(value.files) * (256 + 4 * 3)
+        binary_writer.seek(data_offset)
+
+        entries = []
+        for name, data in value.files.items():
+            compressed_data = zlib.compress(data, level=9)
+
+            offset = binary_writer.tell() - data_offset
+            compressed_size = len(compressed_data)
+            decompressed_size = len(data)
+
+            binary_writer.write(compressed_data)
+
+            entries.append(DBFEntry(name, offset, compressed_size, decompressed_size))
+
+        binary_writer.seek(entries_pos)
+        binary_writer.write_list(entries, DBFEntry.binwrite, None, endianness)
 
 
 @dataclass
