@@ -33,6 +33,16 @@ Information that might be useful for modding Ford Racing Off Road (2008) by Razo
 | .wiv | Uncompressed [WAVE](https://en.wikipedia.org/wiki/WAV) |
 | .WMA | [Windows Media Audio](https://en.wikipedia.org/wiki/Windows_Media_Audio) |
 
+#### DDS
+
+[texconv](https://github.com/microsoft/DirectXTex/wiki/texconv) can be used to convert to/from DDS from/to standard formats like PNG. When converting to DDS from PNG, the command should look something like this:
+
+```sh
+texconv -f DXGI_FORMAT_BC1_UNORM -dx9 --mip-levels 0 image.png
+```
+
+`DXGI_FORMAT_BC1_UNORM` corresponds to DXT1. You can also use `DXGI_FORMAT_BC2_UNORM` for DXT3. `--mip-levels 0` will generate all mipmaps, `1` will remove mipmaps, and other values will use that many levels. There are also many more options available on the [texconv wiki page](https://github.com/microsoft/DirectXTex/wiki/texconv).
+
 ### Signatures
 
 #### [Detect It Easy](https://github.com/horsicq/Detect-It-Easy)
