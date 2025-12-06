@@ -127,7 +127,7 @@ class BinWrite(typing.Protocol[A]):
         value: typing.Self,
         args: A,
         endianness: Endianness,
-    ) -> int: ...
+    ) -> None: ...
 
 
 class BinaryWriter:
@@ -140,36 +140,34 @@ class BinaryWriter:
     def tell(self):
         return self.f.tell()
 
-    def write(self, data: bytes):
+    def write(self, data: bytes) -> int:
         return self.f.write(data)
 
-    def write_string(self, value: str, encoding: str = "ascii") -> int:
-        return self.write(value.encode(encoding))
+    def write_string(self, value: str, encoding: str = "ascii") -> None:
+        self.write(value.encode(encoding))
 
     def write_struct(
         self, value: typing.Any, format: str, endianness: Endianness
-    ) -> int:
+    ) -> None:
         s = struct.Struct(str(endianness) + format)
         data = s.pack(value)
-        return self.write(data)
+        self.write(data)
 
-    def write_u32(self, value: int, endianness: Endianness) -> int:
-        return self.write_struct(value, "I", endianness)
+    def write_u32(self, value: int, endianness: Endianness) -> None:
+        self.write_struct(value, "I", endianness)
 
-    def write_u32_args(self, value: int, args: None, endianness: Endianness) -> int:
-        return self.write_u32(value, endianness)
+    def write_u32_args(self, value: int, args: None, endianness: Endianness) -> None:
+        self.write_u32(value, endianness)
 
     def write_list(
         self,
         values: list[T],
-        write_element: typing.Callable[["BinaryWriter", T, A, Endianness], int],
+        write_element: typing.Callable[["BinaryWriter", T, A, Endianness], None],
         args: A,
         endianness: Endianness,
-    ) -> int:
-        num_bytes_written = 0
+    ) -> None:
         for value in values:
-            num_bytes_written += write_element(self, value, args, endianness)
-        return num_bytes_written
+            write_element(self, value, args, endianness)
 
 
 def align_to(alignment: int, value: int) -> int:

@@ -36,8 +36,8 @@ class CompressSubcommand(Subcommand):
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("decompressed")
-        parser.add_argument("compressed")
+        parser.add_argument("decompressed", type=pathlib.Path)
+        parser.add_argument("compressed", type=pathlib.Path)
 
     @classmethod
     def execute(cls, args: argparse.Namespace) -> None:
@@ -53,8 +53,8 @@ class DecompressSubcommand(Subcommand):
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("compressed")
-        parser.add_argument("decompressed")
+        parser.add_argument("compressed", type=pathlib.Path)
+        parser.add_argument("decompressed", type=pathlib.Path)
 
     @classmethod
     def execute(cls, args: argparse.Namespace) -> None:
@@ -71,20 +71,19 @@ class ExtractDBFSubcommand(Subcommand):
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("dbf")
-        parser.add_argument("directory")
+        parser.add_argument("dbf", type=pathlib.Path)
+        parser.add_argument("directory", type=pathlib.Path)
 
     @classmethod
     def execute(cls, args: argparse.Namespace) -> None:
-        directory = pathlib.Path(args.directory)
-        directory.mkdir(parents=True, exist_ok=True)
+        args.directory.mkdir(parents=True, exist_ok=True)
 
         with open(args.dbf, "rb") as dbf:
             binary_reader = BinaryReader(dbf)
             parsed_dbf = DBF.binread(binary_reader, None, Endianness.LITTLE)
 
             for name, decompressed_data in parsed_dbf.files.items():
-                file_path = directory / name
+                file_path = args.directory / name
                 file_path_directory = file_path.parent
                 file_path_directory.mkdir(parents=True, exist_ok=True)
                 with open(file_path, "wb") as f:
@@ -96,13 +95,12 @@ class ExtractNPCSubcommand(Subcommand):
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("npc")
-        parser.add_argument("directory")
+        parser.add_argument("npc", type=pathlib.Path)
+        parser.add_argument("directory", type=pathlib.Path)
 
     @classmethod
     def execute(cls, args: argparse.Namespace) -> None:
-        directory = pathlib.Path(args.directory)
-        directory.mkdir(parents=True, exist_ok=True)
+        args.directory.mkdir(parents=True, exist_ok=True)
 
         with open(args.npc, "rb") as npc:
             binary_reader = BinaryReader(npc)
@@ -110,7 +108,7 @@ class ExtractNPCSubcommand(Subcommand):
 
             for name, decompressed_data in parsed_npc.files.items():
                 file_name = name + ".wav"
-                file_path = directory / file_name
+                file_path = args.directory / file_name
                 file_path_directory = file_path.parent
                 file_path_directory.mkdir(parents=True, exist_ok=True)
                 with open(file_path, "wb") as f:
@@ -122,13 +120,12 @@ class ExtractPCGSubcommand(Subcommand):
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("pcg")
-        parser.add_argument("directory")
+        parser.add_argument("pcg", type=pathlib.Path)
+        parser.add_argument("directory", type=pathlib.Path)
 
     @classmethod
     def execute(cls, args: argparse.Namespace) -> None:
-        directory = pathlib.Path(args.directory)
-        directory.mkdir(parents=True, exist_ok=True)
+        args.directory.mkdir(parents=True, exist_ok=True)
 
         with open(args.pcg, "rb") as pcg:
             decompressed_binary_reader = get_decompressed_binary_reader(pcg)
@@ -137,7 +134,7 @@ class ExtractPCGSubcommand(Subcommand):
             )
             for entry in parsed_pcg.entries:
                 print(entry.name)
-                path = directory / (entry.name + ".dds")
+                path = args.directory / (entry.name + ".dds")
                 with open(path, "wb") as dds:
                     binary_writer = BinaryWriter(dds)
                     dds_header = DDSHeader(
@@ -154,12 +151,11 @@ class CreatePCGSubcommand(Subcommand):
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("directory")
-        parser.add_argument("pcg")
+        parser.add_argument("directory", type=pathlib.Path)
+        parser.add_argument("pcg", type=pathlib.Path)
 
     @classmethod
-    def execute(cls, args: argparse.Namespace) -> None:
-        directory = pathlib.Path(args.directory)
+    def execute(cls, args: argparse.Namespace) -> None: ...
 
 
 def main() -> None:
