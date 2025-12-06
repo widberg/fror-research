@@ -48,6 +48,7 @@ struct TexturesPcEntry4 {
     u32 b;
     u32 name_size;
     char name[name_size];
+    // This isn't the only thing we need to check
     TexturesPcEntry4Encoding encoding;
     u32 num_mipmaps;
     float e;
