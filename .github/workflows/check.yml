@@ -12,9 +12,7 @@ jobs:
     - run: pip install -r scripts/requirements.txt
     - name: Black
       working-directory: ./scripts
-      run: |
-        python -m black --check --diff .
+      run: python -m black --check --diff .
     - name: mypy
       working-directory: ./scripts
-      run: |
-        python -m mypy --explicit-package-bases libfror fror.py
+      run: python -m mypy --explicit-package-bases libfror fror.py

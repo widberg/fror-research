@@ -19,4 +19,4 @@ struct PVS {
 
 PVS pvs @ 0x0;
 
-std::assert(std::mem::eof(), "");
+std::assert(std::mem::eof(), "Did not consume whole input");
