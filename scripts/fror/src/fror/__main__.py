@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 from dataclasses import dataclass
 from io import BytesIO
 import pathlib
@@ -11,7 +12,6 @@ import tempfile
 from annotated_types import Len
 from pydantic import BaseModel, ConfigDict
 
-import libfror
 from libfror.decompress import (
     compress_and_write,
     get_decompressed_binary_reader,
@@ -55,8 +55,7 @@ class Subcommand(typing.Protocol[A]):
 
     @classmethod
     def pre_execute(cls, args: argparse.Namespace) -> None:
-        # TODO: WTF!?
-        args_dict = args.__dict__
+        args_dict = vars(args).copy()
         del args_dict["subcommand"]
         del args_dict["klass"]
         cls.execute(cls.Args(**args_dict))
@@ -593,44 +592,40 @@ class ImHexValidateSubcommand(Subcommand):
             for input_str in glob.glob(str(args.fror / format.glob), recursive=True):
                 input = pathlib.Path(input_str)
                 decompressed_input = input
-                tmp = None
-                if format.compressed:
-                    tmp = tempfile.TemporaryDirectory()
-                    with open(input, "rb") as f:
-                        decompressed_binary_reader = get_decompressed_binary_reader(f)
-                        decompressed_data = decompressed_binary_reader.read()
-                        decompressed_input = pathlib.Path(tmp.name) / "decompressed.bin"
-                        decompressed_input.write_bytes(decompressed_data)
+                tmp_ctx = tempfile.TemporaryDirectory() if format.compressed else contextlib.nullcontext()
+                with tmp_ctx as tmp:
+                    if format.compressed:
+                        with open(input, "rb") as f:
+                            decompressed_binary_reader = get_decompressed_binary_reader(f)
+                            decompressed_data = decompressed_binary_reader.read()
+                            decompressed_input = pathlib.Path(tmp) / "decompressed.bin"
+                            decompressed_input.write_bytes(decompressed_data)
 
-                completed_process = subprocess.run(
-                    [
-                        args.imhex,
-                        "--pl",
-                        "run",
-                        "--includes",
-                        includes,
-                        "--pattern",
-                        patterns / format.pattern,
-                        "--input",
-                        decompressed_input,
-                    ],
-                    shell=True,
-                    capture_output=True,
-                )
-                if (
-                    completed_process.returncode != 0
-                    or completed_process.stdout
-                    or completed_process.stderr
-                ):
-                    if args.verbose:
-                        print(
-                            f"!!! ERROR: Failed to validate {input}\nreturncode: {completed_process.returncode}\nstdout: {completed_process.stdout.decode()}\nstderr: {completed_process.stderr.decode()}"
-                        )
-                    else:
-                        print(f"!!! ERROR: Failed to validate {input}")
+                    completed_process = subprocess.run(
+                        [
+                            args.imhex,
+                            "--pl",
+                            "run",
+                            "--includes",
+                            includes,
+                            "--pattern",
+                            patterns / format.pattern,
+                            "--input",
+                            decompressed_input,
+                        ],
+                        capture_output=True,
+                        text=True,
+                    )
 
-                if tmp:
-                    tmp.cleanup()
+                    if (
+                        completed_process.returncode != 0
+                        or completed_process.stdout
+                        or completed_process.stderr
+                    ):
+                        error = f"!!! ERROR: Failed to validate {input}"
+                        if args.verbose:
+                            error += f"\nreturncode: {completed_process.returncode}\nstdout: {completed_process.stdout}\nstderr: {completed_process.stderr}"
+                        print(error)
 
 
 def main() -> None:

@@ -1,4 +1,5 @@
-// TODO: Finish this
+import std.core;
+import std.sys;
 
 struct ThreeDObjDbPcEntryEntry {
     float floats[15];
@@ -18,9 +19,18 @@ struct ThreeDObjDbPcEntryEntry4 {
 };
 
 struct ThreeDObjDbPcEntryEntry5 {
-    u32 a[7];
-    if (false) { // FIXME
-        u32 b[2];
+    u32 a;
+    u16 b;
+    u16 c;
+    float d;
+    u32 e;
+    u32 f;
+    u32 g;
+    u32 h;
+    u32 i;
+    if (false) { // FIXME: Some functon argument controls this
+        u32 j;
+        u32 k;
     }
 };
 
@@ -52,8 +62,7 @@ struct ThreeDObjDbPcEntryEntry11Entry {
 struct ThreeDObjDbPcEntryEntry11 {
     u32 flags = parent.flags;
     if (parent.flags & 0x01) {
-        u16 a;
-        padding[2];
+        u32 a;
     } else {
         u32 skip;
         u16 a;
@@ -71,8 +80,18 @@ struct ThreeDObjDbPcEntryEntry11 {
     }
 };
 
+fn all_eq(auto arr, auto val) {
+    for (auto i = 0, i < std::core::member_count(arr), i += 1) {
+        if (arr[i] != val) {
+            return false;
+        }
+    }
+    return true;
+};
+
 struct ThreeDObjDbPcEntry {
     s32 check[4];
+    std::assert(all_eq(check, -1), "check != {-1, -1, -1, -1}");
     u32 index;
     u8 num_entries;
     padding[3];
@@ -109,7 +128,8 @@ struct ThreeDObjDbPcEntry {
     ThreeDObjDbPcEntryEntry8 entries8[num_entries8];
     u32 a;
     u32 b;
-    u32 num_entries9;
+    u8 num_entries9;
+    padding[3];
     ThreeDObjDbPcEntryEntry9 entries9[num_entries9];
     u32 c;
     u16 d;
@@ -124,33 +144,36 @@ struct ThreeDObjDbPcEntry {
     ThreeDObjDbPcEntryEntry11 entries11[num_entries11];
 };
 
-struct ThreeDObjDbPcTailEntry {
+struct ThreeDObjDbPcEntry2 {
+    u32 a;
+};
+
+struct ThreeDObjDbPcEntry3 {
+    u16 a;
+    u8 b;
+    u8 c;
+};
+
+struct ThreeDObjDbPcEntry4 {
     u32 a[6];
 };
 
-struct ThreeDObjDbPcTailEntry2Entry {
-    u8 a;
+struct ThreeDObjDbPcEntry5Entry {
+    u32 a[6];
 };
 
-struct ThreeDObjDbPcTailEntry2 {
+struct ThreeDObjDbPcEntry5 {
+    u32 num_entries;
+    ThreeDObjDbPcEntry5Entry entries[num_entries];
+};
+
+struct ThreeDObjDbPcEntry6 {
     u32 a;
     u32 b;
     u32 num_entries;
-    ThreeDObjDbPcTailEntry2Entry entries[num_entries];
+    u8 entries[num_entries];
     u32 c;
-    if (c != -1) {
-        // FIXME: Do I actually have to do anything here?
-    }
-    u32 d[21]; // FIXME: Is that the right number?
-};
-
-struct ThreeDObjDbPcTail {
-    u32 a;
-    u32 num_entries;
-    ThreeDObjDbPcTailEntry entries[num_entries];
-    u32 b;
-    u32 num_entries2;
-    ThreeDObjDbPcTailEntry2 entries2[num_entries2];
+    u32 d[21];
 };
 
 struct ThreeDObjDbPc {
@@ -169,14 +192,28 @@ struct ThreeDObjDbPc {
     u32 m;
     u32 n;
     u32 o;
-    u32 p;
+    u32 num_entries2;
     u32 q;
     if (a > 17) {
         u32 r;
         u32 s;
     }
     ThreeDObjDbPcEntry entries[num_entries];
-    ThreeDObjDbPcTail tail;
+    if (num_entries2 != 0) {
+        u32 num_entries3;
+        u32 num_entries4;
+        ThreeDObjDbPcEntry2 entries2[num_entries2];
+        ThreeDObjDbPcEntry3 entries3[num_entries3];
+        ThreeDObjDbPcEntry4 entries4[num_entries4];
+    }
+    u32 num_entries5;
+    u32 t;
+    ThreeDObjDbPcEntry5 entries5[num_entries5];
+    u32 num_entries6;
+    u32 u;
+    ThreeDObjDbPcEntry6 entries6[num_entries6];
 };
 
 ThreeDObjDbPc three_d_obj_db_pc @ 0x0;
+
+std::assert(std::mem::eof(), "Did not consume whole input");
