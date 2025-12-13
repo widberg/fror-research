@@ -4,10 +4,12 @@ from io import BytesIO
 import pathlib
 import typing
 import abc
+import subprocess
+import glob
+import tempfile
 
 from annotated_types import Len
 from pydantic import BaseModel, ConfigDict
-import pydantic
 
 from libfror.src.libfror.decompress import (
     compress_and_write,
@@ -530,6 +532,102 @@ class ExtractTexturesPcSubcommand(Subcommand):
                     binary_writer.write(texture_pc_entry4.data)
 
 
+class ImHexValidateSubcommand(Subcommand):
+    NAME = "imhex"
+
+    @dataclass
+    class Format:
+        glob: str
+        pattern: str
+        compressed: bool
+
+    FORMATS: dict[str, Format] = {
+        "dbf": Format("data/**/*.dbf", "dbf.hexpat", False),
+        "bininfo_bin": Format("data/**/bininfo.bin", "bininfo_bin.hexpat", False),
+        "fonts_hdr": Format("data/**/fonts.hdr", "fonts_hdr.hexpat", False),
+        "fonts_raw": Format("data/**/fonts.raw", "fonts_raw.hexpat", False),
+        "gradient_dat": Format("data/**/gradient.dat", "gradient_dat.hexpat", False),
+        "npc": Format("data/**/*.npc", "npc.hexpat", False),
+        "pcg": Format("data/**/*.pcg", "pcg.hexpat", True),
+        "pvs": Format("data/**/*.pvs", "pvs.hexpat", True),
+        "spc": Format("data/**/*.spc", "spc.hexpat", False),
+        "textures_pc": Format("data/**/textures.pc", "textures_pc.hexpat", True),
+        "3dobjdb_pc": Format("data/**/3dobjdb.pc", "three_d_obj_db_pc.hexpat", False),
+        "3dobjs_pc": Format("data/**/3dobjs.pc", "three_d_objs_pc.hexpat", True),
+        # "3dobjsp_pc": Format("data/**/3dobjsp.pc", "three_d_objsp_pc.hexpat", True),
+    }
+
+    @dataclass
+    class Args:
+        fror_research: pathlib.Path
+        fror: pathlib.Path
+        verbose: bool
+        imhex: pathlib.Path
+        formats: str
+
+    @classmethod
+    def setup(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("fror_research", type=pathlib.Path)
+        parser.add_argument("fror", type=pathlib.Path)
+        parser.add_argument("--verbose", action=argparse.BooleanOptionalAction)
+        parser.add_argument("--imhex", type=pathlib.Path, default="imhex")
+        parser.add_argument(
+            "--formats",
+            type=str,
+            default=";".join(ImHexValidateSubcommand.FORMATS.keys()),
+        )
+
+    @classmethod
+    def execute(cls, args: Args) -> None:
+        includes = args.fror_research / "includes"
+        patterns = args.fror_research / "patterns"
+        formats = args.formats.split(";")
+        for format_name, format in ImHexValidateSubcommand.FORMATS.items():
+            if format_name not in formats:
+                continue
+            for input_str in glob.glob(str(args.fror / format.glob), recursive=True):
+                input = pathlib.Path(input_str)
+                decompressed_input = input
+                tmp = None
+                if format.compressed:
+                    tmp = tempfile.TemporaryDirectory()
+                    with open(input, "rb") as f:
+                        decompressed_binary_reader = get_decompressed_binary_reader(f)
+                        decompressed_data = decompressed_binary_reader.read()
+                        decompressed_input = pathlib.Path(tmp.name) / "decompressed.bin"
+                        decompressed_input.write_bytes(decompressed_data)
+
+                completed_process = subprocess.run(
+                    [
+                        args.imhex,
+                        "--pl",
+                        "run",
+                        "--includes",
+                        includes,
+                        "--pattern",
+                        patterns / format.pattern,
+                        "--input",
+                        decompressed_input,
+                    ],
+                    shell=True,
+                    capture_output=True,
+                )
+                if (
+                    completed_process.returncode != 0
+                    or completed_process.stdout
+                    or completed_process.stderr
+                ):
+                    if args.verbose:
+                        print(
+                            f"!!! ERROR: Failed to validate {input}\nreturncode: {completed_process.returncode}\nstdout: {completed_process.stdout.decode()}\nstderr: {completed_process.stderr.decode()}"
+                        )
+                    else:
+                        print(f"!!! ERROR: Failed to validate {input}")
+
+                if tmp:
+                    tmp.cleanup()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="Ford Racing Off Road")
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
@@ -543,6 +641,7 @@ def main() -> None:
     ExtractPCGSubcommand.pre_setup(subparsers)
     CreatePCGSubcommand.pre_setup(subparsers)
     ExtractTexturesPcSubcommand.pre_setup(subparsers)
+    ImHexValidateSubcommand.pre_setup(subparsers)
 
     args = parser.parse_args()
     args.klass.pre_execute(args)

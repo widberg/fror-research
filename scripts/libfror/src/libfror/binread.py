@@ -28,16 +28,16 @@ class BinaryReader:
     def __init__(self, f: typing.Any):
         self.f = f
 
-    def seek(self, offset: int, whence: int = os.SEEK_SET):
-        return self.f.seek(offset, whence)
+    def seek(self, offset: int, whence: int = os.SEEK_SET) -> None:
+        self.f.seek(offset, whence)
 
-    def tell(self):
+    def tell(self) -> int:
         return self.f.tell()
 
-    def skip(self, offset: int):
-        return self.f.seek(offset, os.SEEK_CUR)
+    def skip(self, offset: int) -> None:
+        self.f.seek(offset, os.SEEK_CUR)
 
-    def read(self, size: typing.Optional[int] = None):
+    def read(self, size: typing.Optional[int] = None) -> bytes:
         return self.f.read(size)
 
     def read_struct(self, format: str, endianness: Endianness) -> tuple[typing.Any]:

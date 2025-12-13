@@ -43,6 +43,88 @@ texconv -f DXGI_FORMAT_BC1_UNORM -dx9 --mip-levels 0 image.png
 
 `DXGI_FORMAT_BC1_UNORM` corresponds to DXT1. You can also use `DXGI_FORMAT_BC2_UNORM` for DXT3. `--mip-levels 0` will generate all mipmaps, `1` will remove mipmaps, and other values will use that many levels. There are also many more options available on the [texconv wiki page](https://github.com/microsoft/DirectXTex/wiki/texconv).
 
+#### Patterns
+
+These files fail to validate with the current patterns:
+
+```plaintext
+data\3ddata\cars\BRONCO\textures.pc
+data\3ddata\cars\EXPED\textures.pc
+data\3ddata\cars\rs200\textures.pc
+data\3ddata\cars\STORMER\textures.pc
+data\3ddata\cars\SVX\textures.pc
+data\3ddata\cars\ui\BRONCO\textures.pc
+data\3ddata\cars\ui\EXPED\textures.pc
+data\3ddata\cars\ui\rs200\textures.pc
+data\3ddata\cars\ui\SVX\textures.pc
+data\3ddata\misc\textures.pc
+data\3ddata\tracks\canyaf\textures.pc
+data\3ddata\tracks\DESAF\textures.pc
+data\3ddata\tracks\DESAR\textures.pc
+data\3ddata\tracks\DESBF\textures.pc
+data\3ddata\tracks\DESBR\textures.pc
+data\3ddata\tracks\DESCF\textures.pc
+data\3ddata\tracks\DESCR\textures.pc
+data\3ddata\tracks\DESDF\textures.pc
+data\3ddata\tracks\DESDR\textures.pc
+data\3ddata\tracks\ICEAF\textures.pc
+data\3ddata\tracks\ICEAR\textures.pc
+data\3ddata\tracks\ICEBF\textures.pc
+data\3ddata\tracks\ICEBR\textures.pc
+data\3ddata\tracks\ICECF\textures.pc
+data\3ddata\tracks\ICECR\textures.pc
+data\3ddata\tracks\ICEDF\textures.pc
+data\3ddata\tracks\ICEDR\textures.pc
+data\3ddata\tracks\jungaf\textures.pc
+data\3ddata\tracks\PTYPEAF\textures.pc
+data\3ddata\tracks\ptypebf\textures.pc
+data\3ddata\tracks\ptypecf\textures.pc
+data\3ddata\tracks\ptypedf\textures.pc
+data\3ddata\tracks\ptypeef\textures.pc
+data\3ddata\tracks\ptypeff\textures.pc
+data\3ddata\tracks\WATAF\textures.pc
+data\3ddata\tracks\WATAR\textures.pc
+data\3ddata\tracks\WATBF\textures.pc
+data\3ddata\tracks\WATBR\textures.pc
+data\3ddata\tracks\WATCF\textures.pc
+data\3ddata\tracks\WATCR\textures.pc
+data\3ddata\tracks\WATDF\textures.pc
+data\3ddata\tracks\WATDR\textures.pc
+data\3ddata\misc\3dobjdb.pc
+data\3ddata\tracks\canyaf\3dobjdb.pc
+data\3ddata\tracks\DESAF\3dobjdb.pc
+data\3ddata\tracks\DESAR\3dobjdb.pc
+data\3ddata\tracks\DESBF\3dobjdb.pc
+data\3ddata\tracks\DESBR\3dobjdb.pc
+data\3ddata\tracks\DESCF\3dobjdb.pc
+data\3ddata\tracks\DESCR\3dobjdb.pc
+data\3ddata\tracks\DESDF\3dobjdb.pc
+data\3ddata\tracks\DESDR\3dobjdb.pc
+data\3ddata\tracks\ICEAF\3dobjdb.pc
+data\3ddata\tracks\ICEAR\3dobjdb.pc
+data\3ddata\tracks\ICEBF\3dobjdb.pc
+data\3ddata\tracks\ICEBR\3dobjdb.pc
+data\3ddata\tracks\ICECF\3dobjdb.pc
+data\3ddata\tracks\ICECR\3dobjdb.pc
+data\3ddata\tracks\ICEDF\3dobjdb.pc
+data\3ddata\tracks\ICEDR\3dobjdb.pc
+data\3ddata\tracks\jungaf\3dobjdb.pc
+data\3ddata\tracks\PTYPEAF\3dobjdb.pc
+data\3ddata\tracks\ptypebf\3dobjdb.pc
+data\3ddata\tracks\ptypecf\3dobjdb.pc
+data\3ddata\tracks\ptypedf\3dobjdb.pc
+data\3ddata\tracks\ptypeef\3dobjdb.pc
+data\3ddata\tracks\ptypeff\3dobjdb.pc
+data\3ddata\tracks\WATAF\3dobjdb.pc
+data\3ddata\tracks\WATAR\3dobjdb.pc
+data\3ddata\tracks\WATBF\3dobjdb.pc
+data\3ddata\tracks\WATBR\3dobjdb.pc
+data\3ddata\tracks\WATCF\3dobjdb.pc
+data\3ddata\tracks\WATCR\3dobjdb.pc
+data\3ddata\tracks\WATDF\3dobjdb.pc
+data\3ddata\tracks\WATDR\3dobjdb.pc
+```
+
 ### Signatures
 
 #### [Detect It Easy](https://github.com/horsicq/Detect-It-Easy)
