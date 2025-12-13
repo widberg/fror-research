@@ -8,11 +8,12 @@ jobs:
     - uses: actions/setup-python@v6
       with:
         python-version: '3.11'
-        cache: 'pip'
-    - run: pip install -r scripts/requirements.txt
+    - uses: astral-sh/setup-uv@v7
+      with:
+        python-version: '3.11'
+    - run: uv pip install --system --editable scripts/fror
+    - run: uv pip install --system black mypy
     - name: Black
-      working-directory: ./scripts
-      run: python -m black --check --diff .
+      run: uv run black --check --diff scripts
     - name: mypy
-      working-directory: ./scripts
-      run: python -m mypy --explicit-package-bases libfror fror.py
+      run: uv run mypy --explicit-package-bases scripts/fror

@@ -558,6 +558,8 @@ class ImHexValidateSubcommand(Subcommand):
         # "3dobjsp_pc": Format("data/**/3dobjsp.pc", "three_d_objsp_pc.hexpat", True),
     }
 
+    SEPARATOR: str = ","
+
     @dataclass
     class Args:
         fror_research: pathlib.Path
@@ -575,14 +577,16 @@ class ImHexValidateSubcommand(Subcommand):
         parser.add_argument(
             "--formats",
             type=str,
-            default=";".join(ImHexValidateSubcommand.FORMATS.keys()),
+            default=ImHexValidateSubcommand.SEPARATOR.join(
+                ImHexValidateSubcommand.FORMATS.keys()
+            ),
         )
 
     @classmethod
     def execute(cls, args: Args) -> None:
         includes = args.fror_research / "includes"
         patterns = args.fror_research / "patterns"
-        formats = args.formats.split(";")
+        formats = args.formats.split(ImHexValidateSubcommand.SEPARATOR)
         for format_name, format in ImHexValidateSubcommand.FORMATS.items():
             if format_name not in formats:
                 continue
