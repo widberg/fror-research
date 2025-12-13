@@ -9,8 +9,7 @@
 				"-m",
 				"mypy",
 				"--explicit-package-bases",
-				"libfror",
-				"fror.py"
+				"fror"
 			],
 			"options": {
 				"cwd": "${workspaceFolder}/scripts/"

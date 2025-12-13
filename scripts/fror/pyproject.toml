@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fror"
+version = "0.1.0"
+description = "Ford Racing Off Road"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.12.5",
+    "libfror",
+]
+
+[tool.uv.sources]
+libfror = { path = "../libfror", editable = true }
+
+[project.scripts]
+fror = "fror.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.mypy]
+plugins = [
+    "pydantic.mypy"
+]

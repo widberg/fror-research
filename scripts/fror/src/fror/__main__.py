@@ -11,12 +11,13 @@ import tempfile
 from annotated_types import Len
 from pydantic import BaseModel, ConfigDict
 
-from libfror.src.libfror.decompress import (
+import libfror
+from libfror.decompress import (
     compress_and_write,
     get_decompressed_binary_reader,
 )
-from libfror.src.libfror.binread import BinaryReader, BinaryWriter, Endianness
-from libfror.src.libfror.types import (
+from libfror.binread import BinaryReader, BinaryWriter, Endianness
+from libfror.types import (
     DBF,
     NPC,
     PCG,

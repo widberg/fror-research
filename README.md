@@ -125,6 +125,20 @@ data\3ddata\tracks\WATDF\3dobjdb.pc
 data\3ddata\tracks\WATDR\3dobjdb.pc
 ```
 
+### Scripts
+
+The main fror cli tool can be installed using [uv](https://docs.astral.sh/uv/):
+
+```console
+uv pip install --system --editable scripts/fror
+```
+
+Then from anywhere on your system you can run:
+
+```console
+fror --help
+```
+
 ### Signatures
 
 #### [Detect It Easy](https://github.com/horsicq/Detect-It-Easy)
