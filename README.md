@@ -38,59 +38,10 @@ Information that might be useful for modding Ford Racing Off Road (2008) by Razo
 [texconv](https://github.com/microsoft/DirectXTex/wiki/texconv) can be used to convert to/from DDS from/to standard formats like PNG. When converting to DDS from PNG, the command should look something like this:
 
 ```sh
-texconv -f DXGI_FORMAT_BC1_UNORM -dx9 --mip-levels 0 image.png
+texconv -f BC1_UNORM -dx9 --mip-levels 0 --overwrite image.png
 ```
 
-`DXGI_FORMAT_BC1_UNORM` corresponds to DXT1. You can also use `DXGI_FORMAT_BC2_UNORM` for DXT3. `--mip-levels 0` will generate all mipmaps, `1` will remove mipmaps, and other values will use that many levels. There are also many more options available on the [texconv wiki page](https://github.com/microsoft/DirectXTex/wiki/texconv).
-
-#### Patterns
-
-These files fail to validate with the current patterns:
-
-```plaintext
-data\3ddata\cars\BRONCO\textures.pc
-data\3ddata\cars\EXPED\textures.pc
-data\3ddata\cars\rs200\textures.pc
-data\3ddata\cars\STORMER\textures.pc
-data\3ddata\cars\SVX\textures.pc
-data\3ddata\cars\ui\BRONCO\textures.pc
-data\3ddata\cars\ui\EXPED\textures.pc
-data\3ddata\cars\ui\rs200\textures.pc
-data\3ddata\cars\ui\SVX\textures.pc
-data\3ddata\misc\textures.pc
-data\3ddata\tracks\canyaf\textures.pc
-data\3ddata\tracks\DESAF\textures.pc
-data\3ddata\tracks\DESAR\textures.pc
-data\3ddata\tracks\DESBF\textures.pc
-data\3ddata\tracks\DESBR\textures.pc
-data\3ddata\tracks\DESCF\textures.pc
-data\3ddata\tracks\DESCR\textures.pc
-data\3ddata\tracks\DESDF\textures.pc
-data\3ddata\tracks\DESDR\textures.pc
-data\3ddata\tracks\ICEAF\textures.pc
-data\3ddata\tracks\ICEAR\textures.pc
-data\3ddata\tracks\ICEBF\textures.pc
-data\3ddata\tracks\ICEBR\textures.pc
-data\3ddata\tracks\ICECF\textures.pc
-data\3ddata\tracks\ICECR\textures.pc
-data\3ddata\tracks\ICEDF\textures.pc
-data\3ddata\tracks\ICEDR\textures.pc
-data\3ddata\tracks\jungaf\textures.pc
-data\3ddata\tracks\PTYPEAF\textures.pc
-data\3ddata\tracks\ptypebf\textures.pc
-data\3ddata\tracks\ptypecf\textures.pc
-data\3ddata\tracks\ptypedf\textures.pc
-data\3ddata\tracks\ptypeef\textures.pc
-data\3ddata\tracks\ptypeff\textures.pc
-data\3ddata\tracks\WATAF\textures.pc
-data\3ddata\tracks\WATAR\textures.pc
-data\3ddata\tracks\WATBF\textures.pc
-data\3ddata\tracks\WATBR\textures.pc
-data\3ddata\tracks\WATCF\textures.pc
-data\3ddata\tracks\WATCR\textures.pc
-data\3ddata\tracks\WATDF\textures.pc
-data\3ddata\tracks\WATDR\textures.pc
-```
+`BC1_UNORM` or `DXT1` corresponds to DXT1. You can also use `BC2_UNORM` or `DXT3` for DXT3, `R8G8B8A8_UNORM` or `RGBA` for RGBA, and `RGB24` for RGB. `--mip-levels 0` will generate all mipmaps, `1` will remove mipmaps, and other values will use that many levels. Avoid mip maps smaller than 4x4. There are also many more options available on the [texconv wiki page](https://github.com/microsoft/DirectXTex/wiki/texconv).
 
 ### Scripts
 
