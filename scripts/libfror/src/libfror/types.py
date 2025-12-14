@@ -525,21 +525,22 @@ class PCG(BinRead, BinWrite):
 
 
 # TODO: Why can't I use BinWrite/BinRead here?
-class DDSHeaderFourCC(StrEnum):
+class DDSPixelFormatFourCC(StrEnum):
+    NONE = "\0\0\0\0"
     BC1 = "DXT1"
     BC2 = "DXT3"
 
     @classmethod
     def binread(
         cls, binary_reader: "BinaryReader", args: None, endianness: Endianness
-    ) -> "DDSHeaderFourCC":
-        return DDSHeaderFourCC(binary_reader.read_fixed_size_string(4))
+    ) -> "DDSPixelFormatFourCC":
+        return DDSPixelFormatFourCC(binary_reader.read_fixed_size_string(4))
 
     @classmethod
     def binwrite(
         cls,
         binary_writer: BinaryWriter,
-        value: "DDSHeaderFourCC",
+        value: "DDSPixelFormatFourCC",
         args: None,
         endianness: Endianness,
     ) -> None:
@@ -547,11 +548,107 @@ class DDSHeaderFourCC(StrEnum):
 
 
 @dataclass
+class DDSPixelFormat(BinWrite, BinRead):
+    flags: int
+    fourCC: DDSPixelFormatFourCC
+    RGBBitCount: int
+    rBitMask: int
+    gBitMask: int
+    bBitMask: int
+    aBitMask: int
+
+    @classmethod
+    def binread(
+        cls, binary_reader: "BinaryReader", args: None, endianness: Endianness
+    ) -> "DDSPixelFormat":
+        ddspf_size = binary_reader.read_u32(endianness)
+        assert ddspf_size == 0x20
+        flags = binary_reader.read_u32(endianness)
+        fourCC = DDSPixelFormatFourCC.binread(binary_reader, None, endianness)
+        RGBBitCount = binary_reader.read_u32(endianness)
+        rBitMask = binary_reader.read_u32(endianness)
+        gBitMask = binary_reader.read_u32(endianness)
+        bBitMask = binary_reader.read_u32(endianness)
+        aBitMask = binary_reader.read_u32(endianness)
+        return DDSPixelFormat(
+            flags, fourCC, RGBBitCount, rBitMask, gBitMask, bBitMask, aBitMask
+        )
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "DDSPixelFormat",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_u32(0x20, endianness)  # size
+        binary_writer.write_u32(value.flags, endianness)  # flags
+        DDSPixelFormatFourCC.binwrite(
+            binary_writer, value.fourCC, None, endianness
+        )  # fourCC
+        binary_writer.write_u32(value.RGBBitCount, endianness)  # RGBBitCount
+        binary_writer.write_u32(value.rBitMask, endianness)  # rBitMask
+        binary_writer.write_u32(value.gBitMask, endianness)  # gBitMask
+        binary_writer.write_u32(value.bBitMask, endianness)  # bBitMask
+        binary_writer.write_u32(value.aBitMask, endianness)  # aBitMask
+
+    @staticmethod
+    def from_bc1() -> "DDSPixelFormat":
+        return DDSPixelFormat(0x4, DDSPixelFormatFourCC.BC1, 0, 0, 0, 0, 0)
+
+    @staticmethod
+    def from_bc2() -> "DDSPixelFormat":
+        return DDSPixelFormat(0x4, DDSPixelFormatFourCC.BC2, 0, 0, 0, 0, 0)
+
+    @staticmethod
+    def from_rgba() -> "DDSPixelFormat":
+        return DDSPixelFormat(
+            0x41,
+            DDSPixelFormatFourCC.NONE,
+            32,
+            0x000000FF,
+            0x0000FF00,
+            0x00FF0000,
+            0xFF000000,
+        )
+
+    @staticmethod
+    def from_rgb() -> "DDSPixelFormat":
+        return DDSPixelFormat(
+            0x40, DDSPixelFormatFourCC.NONE, 24, 0x00FF0000, 0x0000FF00, 0x000000FF, 0
+        )
+
+    def get_bytes_per_pixel(self) -> float:
+        match self.fourCC:
+            case DDSPixelFormatFourCC.BC1:
+                return 0.5
+            case DDSPixelFormatFourCC.BC2:
+                return 1
+            case DDSPixelFormatFourCC.NONE:
+                return self.RGBBitCount // 8
+
+    def is_compressed(self):
+        return self.fourCC != DDSPixelFormatFourCC.NONE
+
+
+class DDSFlags:
+    DDSD_CAPS: int = 0x1
+    DDSD_HEIGHT: int = 0x2
+    DDSD_WIDTH: int = 0x4
+    DDSD_PITCH: int = 0x8
+    DDSD_PIXELFORMAT: int = 0x1000
+    DDSD_MIPMAPCOUNT: int = 0x20000
+    DDSD_LINEARSIZE: int = 0x80000
+    DDSD_DEPTH: int = 0x800000
+
+
+@dataclass
 class DDSHeader(BinWrite, BinRead):
     width: int
     height: int
     mip_map_count: int
-    four_cc: DDSHeaderFourCC
+    ddspf: DDSPixelFormat
 
     @classmethod
     def binread(
@@ -568,23 +665,13 @@ class DDSHeader(BinWrite, BinRead):
         depth = binary_reader.read_u32(endianness)
         mipMapCount = binary_reader.read_u32(endianness)
         reserved0 = binary_reader.read(44)
-        # begin ddspf
-        ddspf_size = binary_reader.read_u32(endianness)
-        assert ddspf_size == 0x20
-        ddspf_flags = binary_reader.read_u32(endianness)
-        ddspf_fourCC = DDSHeaderFourCC.binread(binary_reader, None, endianness)
-        ddspf_RGBBitCount = binary_reader.read_u32(endianness)
-        ddspf_rBitMask = binary_reader.read_u32(endianness)
-        ddspf_gBitMask = binary_reader.read_u32(endianness)
-        ddspf_bBitMask = binary_reader.read_u32(endianness)
-        ddspf_aBitMask = binary_reader.read_u32(endianness)
-        # end ddspf
+        ddspf = DDSPixelFormat.binread(binary_reader, None, endianness)
         caps = binary_reader.read_u32(endianness)
         caps2 = binary_reader.read_u32(endianness)
         caps3 = binary_reader.read_u32(endianness)
         caps4 = binary_reader.read_u32(endianness)
         reserved1 = binary_reader.read_u32(endianness)
-        return DDSHeader(width, height, mipMapCount, ddspf_fourCC)
+        return DDSHeader(width, height, mipMapCount, ddspf)
 
     @classmethod
     def binwrite(
@@ -594,27 +681,32 @@ class DDSHeader(BinWrite, BinRead):
         args: None,
         endianness: Endianness,
     ) -> None:
+        flags = (
+            DDSFlags.DDSD_CAPS
+            | DDSFlags.DDSD_HEIGHT
+            | DDSFlags.DDSD_WIDTH
+            | DDSFlags.DDSD_PIXELFORMAT
+            | DDSFlags.DDSD_MIPMAPCOUNT
+        )
+        if value.ddspf.is_compressed():
+            flags |= DDSFlags.DDSD_LINEARSIZE
+            pitchOrLinearSize = int(
+                value.width * value.height * value.ddspf.get_bytes_per_pixel()
+            )
+        else:
+            flags |= DDSFlags.DDSD_PITCH
+            pitchOrLinearSize = int(value.width * value.ddspf.get_bytes_per_pixel())
+
         binary_writer.write_string("DDS ")  # id
         binary_writer.write_u32(0x7C, endianness)  # size
-        binary_writer.write_u32(0x000A1007, endianness)  # flags
+        binary_writer.write_u32(flags, endianness)  # flags
         binary_writer.write_u32(value.height, endianness)  # height
         binary_writer.write_u32(value.width, endianness)  # width
-        binary_writer.write_u32(0x00010000, endianness)  # pitchOrLinearSize
+        binary_writer.write_u32(pitchOrLinearSize, endianness)  # pitchOrLinearSize
         binary_writer.write_u32(1, endianness)  # depth
         binary_writer.write_u32(value.mip_map_count, endianness)  # mipMapCount
         binary_writer.write(b"\0" * 44)  # reserved0
-        # begin ddspf
-        binary_writer.write_u32(32, endianness)  # size
-        binary_writer.write_u32(0x00000004, endianness)  # flags
-        DDSHeaderFourCC.binwrite(
-            binary_writer, value.four_cc, None, endianness
-        )  # fourCC
-        binary_writer.write_u32(0, endianness)  # RGBBitCount
-        binary_writer.write_u32(0, endianness)  # rBitMask
-        binary_writer.write_u32(0, endianness)  # gBitMask
-        binary_writer.write_u32(0, endianness)  # bBitMask
-        binary_writer.write_u32(0, endianness)  # aBitMask
-        # end ddspf
+        DDSPixelFormat.binwrite(binary_writer, value.ddspf, None, endianness)
         binary_writer.write_u32(0x00401008, endianness)  # caps
         binary_writer.write_u32(0, endianness)  # caps2
         binary_writer.write_u32(0, endianness)  # caps3
@@ -658,59 +750,23 @@ class TexturesPcEntry3(BinRead):
         return TexturesPcEntry3(data)
 
 
-class TexturesPcEntry4Encoding(IntEnum):
-    BC1 = 1
-    BC2 = 3
-
-    @classmethod
-    def binread(
-        cls, binary_reader: "BinaryReader", args: None, endianness: Endianness
-    ) -> "TexturesPcEntry4Encoding":
-        return TexturesPcEntry4Encoding(binary_reader.read_u32(endianness))
-
-    @classmethod
-    def binwrite(
-        cls,
-        binary_writer: BinaryWriter,
-        value: "TexturesPcEntry4Encoding",
-        args: None,
-        endianness: Endianness,
-    ) -> None:
-        binary_writer.write_u32(value, endianness)
-
-    def to_dds_four_cc(self) -> DDSHeaderFourCC:
-        match self:
-            case TexturesPcEntry4Encoding.BC1:
-                return DDSHeaderFourCC.BC1
-            case TexturesPcEntry4Encoding.BC2:
-                return DDSHeaderFourCC.BC2
-            case _:
-                assert False
-
-
 def calculate_dds_data_size_internal(
-    width: int, height: int, encoding: TexturesPcEntry4Encoding
+    width: int, height: int, ddspf: DDSPixelFormat
 ) -> int:
-    match encoding:
-        case TexturesPcEntry4Encoding.BC1:
-            return width * height // 2
-        case TexturesPcEntry4Encoding.BC2:
-            return width * height
-        case _:
-            assert False
+    return int(width * height * ddspf.get_bytes_per_pixel())
 
 
 def calculate_dds_data_size(
-    width: int, height: int, num_mipmaps: int, encoding: TexturesPcEntry4Encoding
+    width: int, height: int, num_mipmaps: int, ddspf: DDSPixelFormat
 ) -> int:
     size = 0
     calculated_num_mipmaps = 0
 
-    size += calculate_dds_data_size_internal(width, height, encoding)
+    size += calculate_dds_data_size_internal(width, height, ddspf)
     width >>= 1
     height >>= 1
     while width >= 4 and height >= 4 and num_mipmaps != 0:
-        size += calculate_dds_data_size_internal(width, height, encoding)
+        size += calculate_dds_data_size_internal(width, height, ddspf)
         width >>= 1
         height >>= 1
         calculated_num_mipmaps += 1
@@ -723,7 +779,7 @@ class TexturesPcEntry4(BinRead):
     flags: int
     b: int
     name: str
-    encoding: TexturesPcEntry4Encoding
+    encoding: int
     num_mipmaps: int
     e: float
     width: int
@@ -741,7 +797,7 @@ class TexturesPcEntry4(BinRead):
         b = binary_reader.read_u32(endianness)
         name_size = binary_reader.read_u32(endianness)
         name = binary_reader.read_fixed_size_string(name_size)
-        encoding = TexturesPcEntry4Encoding.binread(binary_reader, None, endianness)
+        encoding = binary_reader.read_u32(endianness)
         num_mipmaps = binary_reader.read_u32(endianness)
         e = binary_reader.read_float(endianness)
         width = binary_reader.read_u32(endianness)
@@ -750,10 +806,41 @@ class TexturesPcEntry4(BinRead):
         i = binary_reader.read_s32(endianness)
         j = binary_reader.read_s32(endianness)
         data = binary_reader.read(
-            calculate_dds_data_size(width, height, num_mipmaps, encoding)
+            calculate_dds_data_size(
+                width,
+                height,
+                num_mipmaps,
+                TexturesPcEntry4.get_dds_pixel_format_from_encoding_and_flags(
+                    encoding, flags
+                ),
+            )
         )
         return TexturesPcEntry4(
             flags, b, name, encoding, num_mipmaps, e, width, height, h, i, j, data
+        )
+
+    @staticmethod
+    def get_dds_pixel_format_from_encoding_and_flags(
+        encoding: int, flags: int
+    ) -> DDSPixelFormat:
+        if encoding == 1:
+            encoding = 5
+        if (flags & 0x10) != 0:
+            match encoding:
+                case 2 | 3:
+                    return DDSPixelFormat.from_rgba()
+                case 5:
+                    return DDSPixelFormat.from_rgb()
+        else:
+            match encoding:
+                case 2 | 5:
+                    return DDSPixelFormat.from_bc1()
+                case 3:
+                    return DDSPixelFormat.from_bc2()
+
+    def get_dds_pixel_format(self) -> DDSPixelFormat:
+        return TexturesPcEntry4.get_dds_pixel_format_from_encoding_and_flags(
+            self.encoding, self.flags
         )
 
 

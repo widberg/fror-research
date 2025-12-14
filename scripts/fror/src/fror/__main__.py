@@ -22,7 +22,8 @@ from libfror.types import (
     NPC,
     PCG,
     DDSHeader,
-    DDSHeaderFourCC,
+    DDSPixelFormat,
+    DDSPixelFormatFourCC,
     PCGData,
     PCGEntry,
     TexturesPc,
@@ -344,7 +345,10 @@ class ExtractPCGSubcommand(Subcommand):
                 with open(path, "wb") as dds:
                     binary_writer = BinaryWriter(dds)
                     dds_header = DDSHeader(
-                        entry.data.width, entry.data.height, 1, DDSHeaderFourCC.BC2
+                        entry.data.width,
+                        entry.data.height,
+                        1,
+                        DDSPixelFormat.from_bc2(),
                     )
                     DDSHeader.binwrite(
                         binary_writer, dds_header, None, Endianness.LITTLE
@@ -375,6 +379,7 @@ class CreatePCGSubcommand(Subcommand):
             with open(args.directory / (entry.name + ".dds"), "rb") as dds:
                 binary_reader = BinaryReader(dds)
                 dds_header = DDSHeader.binread(binary_reader, None, Endianness.LITTLE)
+                assert dds_header.ddspf.fourCC == DDSPixelFormatFourCC.BC2
                 data = binary_reader.read()
                 entry.data.width = dds_header.width
                 entry.data.height = dds_header.height
@@ -436,6 +441,7 @@ class TexturesPcEntry4Manifest(BaseModel):
     flags: int
     b: int
     name: str
+    encoding: int
     e: float
     h: int
     i: int
@@ -449,6 +455,7 @@ class TexturesPcEntry4Manifest(BaseModel):
             flags=textures_pc_entry4.flags,
             b=textures_pc_entry4.b,
             name=textures_pc_entry4.name,
+            encoding=textures_pc_entry4.encoding,
             e=textures_pc_entry4.e,
             h=textures_pc_entry4.h,
             i=textures_pc_entry4.i,
@@ -524,7 +531,7 @@ class ExtractTexturesPcSubcommand(Subcommand):
                         texture_pc_entry4.width,
                         texture_pc_entry4.height,
                         texture_pc_entry4.num_mipmaps + 1,
-                        texture_pc_entry4.encoding.to_dds_four_cc(),
+                        texture_pc_entry4.get_dds_pixel_format(),
                     )
                     DDSHeader.binwrite(
                         binary_writer, dds_header, None, Endianness.LITTLE
@@ -592,13 +599,22 @@ class ImHexValidateSubcommand(Subcommand):
             for input_str in glob.glob(str(args.fror / format.glob), recursive=True):
                 input = pathlib.Path(input_str)
                 decompressed_input = input
-                tmp_ctx = tempfile.TemporaryDirectory() if format.compressed else contextlib.nullcontext()
+                tmp_ctx = (
+                    tempfile.TemporaryDirectory()
+                    if format.compressed
+                    else contextlib.nullcontext()
+                )
                 with tmp_ctx as tmp:
                     if format.compressed:
+                        tmp_str = typing.cast(str, tmp)
                         with open(input, "rb") as f:
-                            decompressed_binary_reader = get_decompressed_binary_reader(f)
+                            decompressed_binary_reader = get_decompressed_binary_reader(
+                                f
+                            )
                             decompressed_data = decompressed_binary_reader.read()
-                            decompressed_input = pathlib.Path(tmp) / "decompressed.bin"
+                            decompressed_input = (
+                                pathlib.Path(tmp_str) / "decompressed.bin"
+                            )
                             decompressed_input.write_bytes(decompressed_data)
 
                     completed_process = subprocess.run(
