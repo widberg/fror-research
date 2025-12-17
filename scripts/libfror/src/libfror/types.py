@@ -725,6 +725,17 @@ class TexturesPcEntry(BinRead):
         data = binary_reader.read(0x400)
         return TexturesPcEntry(data)
 
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "TexturesPcEntry",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert len(value.data) == 0x400
+        binary_writer.write(value.data)
+
 
 @dataclass
 class TexturesPcEntry2(BinRead):
@@ -737,6 +748,17 @@ class TexturesPcEntry2(BinRead):
         data = binary_reader.read(0x40)
         return TexturesPcEntry2(data)
 
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "TexturesPcEntry2",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert len(value.data) == 0x40
+        binary_writer.write(value.data)
+
 
 @dataclass
 class TexturesPcEntry3(BinRead):
@@ -748,6 +770,17 @@ class TexturesPcEntry3(BinRead):
     ) -> "TexturesPcEntry3":
         data = binary_reader.read(0x400)
         return TexturesPcEntry3(data)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "TexturesPcEntry3",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert len(value.data) == 0x400
+        binary_writer.write(value.data)
 
 
 def calculate_dds_data_size_internal(
@@ -819,6 +852,35 @@ class TexturesPcEntry4(BinRead):
             flags, b, name, encoding, num_mipmaps, e, width, height, h, i, j, data
         )
 
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "TexturesPcEntry4",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_u32(value.flags, endianness)
+        binary_writer.write_u32(value.b, endianness)
+        binary_writer.write_u32(len(value.name) + 1, endianness)
+        binary_writer.write_fixed_size_string(value.name, len(value.name) + 1)
+        binary_writer.write_u32(value.encoding, endianness)
+        binary_writer.write_u32(value.num_mipmaps, endianness)
+        binary_writer.write_float(value.e, endianness)
+        binary_writer.write_u32(value.width, endianness)
+        binary_writer.write_u32(value.height, endianness)
+        binary_writer.write_u32(value.h, endianness)
+        binary_writer.write_s32(value.i, endianness)
+        binary_writer.write_s32(value.j, endianness)
+
+        assert len(value.data) == calculate_dds_data_size(
+            value.width,
+            value.height,
+            value.num_mipmaps,
+            value.get_dds_pixel_format(),
+        )
+        binary_writer.write(value.data)
+
     @staticmethod
     def get_dds_pixel_format_from_encoding_and_flags(
         encoding: int, flags: int
@@ -845,7 +907,7 @@ class TexturesPcEntry4(BinRead):
 
 
 @dataclass
-class TexturesPc(BinRead):
+class TexturesPc(BinRead, BinWrite):
     entries: list[TexturesPcEntry]
     entries2: list[TexturesPcEntry2]
     entries3: list[TexturesPcEntry3]
@@ -874,3 +936,29 @@ class TexturesPc(BinRead):
             num_entries4, TexturesPcEntry4.binread, None, endianness
         )
         return TexturesPc(entries, entries2, entries3, b, entries4)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "TexturesPc",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_u32(len(value.entries), endianness)
+        binary_writer.write_u32(len(value.entries2), endianness)
+        binary_writer.write_u32(len(value.entries3), endianness)
+        binary_writer.write_list(
+            value.entries, TexturesPcEntry.binwrite, None, endianness
+        )
+        binary_writer.write_list(
+            value.entries2, TexturesPcEntry2.binwrite, None, endianness
+        )
+        binary_writer.write_list(
+            value.entries3, TexturesPcEntry3.binwrite, None, endianness
+        )
+        binary_writer.write_u32(len(value.entries4), endianness)
+        binary_writer.write_u32(value.b, endianness)
+        binary_writer.write_list(
+            value.entries4, TexturesPcEntry4.binwrite, None, endianness
+        )

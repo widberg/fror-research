@@ -403,8 +403,11 @@ class TexturesPcEntryManifest(BaseModel):
     @staticmethod
     def from_textures_pc_entry(
         textures_pc_entry: TexturesPcEntry,
-    ) -> TexturesPcEntryManifest:
+    ) -> "TexturesPcEntryManifest":
         return TexturesPcEntryManifest(data=textures_pc_entry.data)
+
+    def to_textures_pc_entry(self) -> TexturesPcEntry:
+        return TexturesPcEntry(self.data)
 
 
 class TexturesPcEntry2Manifest(BaseModel):
@@ -421,6 +424,9 @@ class TexturesPcEntry2Manifest(BaseModel):
     ) -> "TexturesPcEntry2Manifest":
         return TexturesPcEntry2Manifest(data=textures_pc_entry2.data)
 
+    def to_textures_pc_entry2(self) -> TexturesPcEntry2:
+        return TexturesPcEntry2(self.data)
+
 
 class TexturesPcEntry3Manifest(BaseModel):
     data: typing.Annotated[bytes, Len(min_length=0x400, max_length=0x400)]
@@ -435,6 +441,9 @@ class TexturesPcEntry3Manifest(BaseModel):
         textures_pc_entry3: TexturesPcEntry3,
     ) -> "TexturesPcEntry3Manifest":
         return TexturesPcEntry3Manifest(data=textures_pc_entry3.data)
+
+    def to_textures_pc_entry3(self) -> TexturesPcEntry3:
+        return TexturesPcEntry3(self.data)
 
 
 class TexturesPcEntry4Manifest(BaseModel):
@@ -460,6 +469,22 @@ class TexturesPcEntry4Manifest(BaseModel):
             h=textures_pc_entry4.h,
             i=textures_pc_entry4.i,
             j=textures_pc_entry4.j,
+        )
+
+    def to_textures_pc_entry4(self) -> TexturesPcEntry4:
+        return TexturesPcEntry4(
+            self.flags,
+            self.b,
+            self.name,
+            self.encoding,
+            0,
+            self.e,
+            0,
+            0,
+            self.h,
+            self.i,
+            self.j,
+            b"",
         )
 
 
@@ -492,26 +517,47 @@ class TexturePcManifest(BaseModel):
             ],
         )
 
+    def to_textures_pc(self) -> TexturesPc:
+        return TexturesPc(
+            [
+                textures_pc_entry_manifest.to_textures_pc_entry()
+                for textures_pc_entry_manifest in self.entries
+            ],
+            [
+                textures_pc_entry2_manifest.to_textures_pc_entry2()
+                for textures_pc_entry2_manifest in self.entries2
+            ],
+            [
+                textures_pc_entry3_manifest.to_textures_pc_entry3()
+                for textures_pc_entry3_manifest in self.entries3
+            ],
+            self.b,
+            [
+                textures_pc_entry4_manifest.to_textures_pc_entry4()
+                for textures_pc_entry4_manifest in self.entries4
+            ],
+        )
+
 
 class ExtractTexturesPcSubcommand(Subcommand):
     NAME = "xtpc"
 
     @dataclass
     class Args:
-        texture_pc: pathlib.Path
+        textures_pc: pathlib.Path
         directory: pathlib.Path
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("texture_pc", type=pathlib.Path)
+        parser.add_argument("textures_pc", type=pathlib.Path)
         parser.add_argument("directory", type=pathlib.Path)
 
     @classmethod
     def execute(cls, args: Args) -> None:
         args.directory.mkdir(parents=True, exist_ok=True)
 
-        with open(args.texture_pc, "rb") as texture_pc:
-            decompressed_binary_reader = get_decompressed_binary_reader(texture_pc)
+        with open(args.textures_pc, "rb") as textures_pc:
+            decompressed_binary_reader = get_decompressed_binary_reader(textures_pc)
             parsed_tpc = TexturesPc.binread(
                 decompressed_binary_reader, None, Endianness.LITTLE
             )
@@ -523,20 +569,60 @@ class ExtractTexturesPcSubcommand(Subcommand):
             )
             (args.directory / "manifest.json").write_text(textures_pc_manifest_json)
 
-            for i, texture_pc_entry4 in enumerate(parsed_tpc.entries4):
-                path = args.directory / (f"{i}.{texture_pc_entry4.name}.dds")
+            for i, textures_pc_entry4 in enumerate(parsed_tpc.entries4):
+                path = args.directory / (f"{i}.{textures_pc_entry4.name}.dds")
                 with open(path, "wb") as dds:
                     binary_writer = BinaryWriter(dds)
                     dds_header = DDSHeader(
-                        texture_pc_entry4.width,
-                        texture_pc_entry4.height,
-                        texture_pc_entry4.num_mipmaps + 1,
-                        texture_pc_entry4.get_dds_pixel_format(),
+                        textures_pc_entry4.width,
+                        textures_pc_entry4.height,
+                        textures_pc_entry4.num_mipmaps + 1,
+                        textures_pc_entry4.get_dds_pixel_format(),
                     )
                     DDSHeader.binwrite(
                         binary_writer, dds_header, None, Endianness.LITTLE
                     )
-                    binary_writer.write(texture_pc_entry4.data)
+                    binary_writer.write(textures_pc_entry4.data)
+
+
+class CreateTexturesPcSubcommand(Subcommand):
+    NAME = "ctpc"
+
+    @dataclass
+    class Args:
+        directory: pathlib.Path
+        textures_pc: pathlib.Path
+
+    @classmethod
+    def setup(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("directory", type=pathlib.Path)
+        parser.add_argument("textures_pc", type=pathlib.Path)
+
+    @classmethod
+    def execute(cls, args: Args) -> None:
+        textures_pc_manifest_json = (args.directory / "manifest.json").read_text()
+        textures_pc_manifest = TexturePcManifest.model_validate_json(
+            textures_pc_manifest_json
+        )
+        textures_pc = textures_pc_manifest.to_textures_pc()
+
+        for i, textures_pc_entry4 in enumerate(textures_pc.entries4):
+            path = args.directory / (f"{i}.{textures_pc_entry4.name}.dds")
+            with open(path, "rb") as dds:
+                binary_reader = BinaryReader(dds)
+                dds_header = DDSHeader.binread(binary_reader, None, Endianness.LITTLE)
+                assert dds_header.ddspf == textures_pc_entry4.get_dds_pixel_format()
+                data = binary_reader.read()
+                textures_pc_entry4.num_mipmaps = dds_header.mip_map_count - 1
+                textures_pc_entry4.width = dds_header.width
+                textures_pc_entry4.height = dds_header.height
+                textures_pc_entry4.data = data
+
+        bytes_io = BytesIO()
+        binary_writer = BinaryWriter(bytes_io)
+        TexturesPc.binwrite(binary_writer, textures_pc, None, Endianness.LITTLE)
+        with open(args.textures_pc, "wb") as textures_pc_file:
+            compress_and_write(bytes_io.getvalue(), textures_pc_file)
 
 
 class ImHexValidateSubcommand(Subcommand):
@@ -658,6 +744,7 @@ def main() -> None:
     ExtractPCGSubcommand.pre_setup(subparsers)
     CreatePCGSubcommand.pre_setup(subparsers)
     ExtractTexturesPcSubcommand.pre_setup(subparsers)
+    CreateTexturesPcSubcommand.pre_setup(subparsers)
     ImHexValidateSubcommand.pre_setup(subparsers)
 
     args = parser.parse_args()

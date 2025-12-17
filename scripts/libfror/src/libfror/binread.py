@@ -167,6 +167,18 @@ class BinaryWriter:
     def write_u32_args(self, value: int, args: None, endianness: Endianness) -> None:
         self.write_u32(value, endianness)
 
+    def write_s32(self, value: int, endianness: Endianness) -> None:
+        self.write_struct(value, "i", endianness)
+
+    def write_s32_args(self, value: int, args: None, endianness: Endianness) -> None:
+        self.write_s32(value, endianness)
+
+    def write_float(self, value: float, endianness: Endianness) -> None:
+        self.write_struct(value, "f", endianness)
+
+    def write_float_args(self, value: int, args: None, endianness: Endianness) -> None:
+        self.write_float(value, endianness)
+
     def write_list(
         self,
         values: list[T],
