@@ -379,7 +379,7 @@ class CreatePCGSubcommand(Subcommand):
             with open(args.directory / (entry.name + ".dds"), "rb") as dds:
                 binary_reader = BinaryReader(dds)
                 dds_header = DDSHeader.binread(binary_reader, None, Endianness.LITTLE)
-                assert dds_header.ddspf.fourCC == DDSPixelFormatFourCC.BC2
+                assert dds_header.ddspf == DDSPixelFormat.from_bc2()
                 data = binary_reader.read()
                 entry.data.width = dds_header.width
                 entry.data.height = dds_header.height
@@ -552,7 +552,8 @@ class ImHexValidateSubcommand(Subcommand):
         "dbf": Format("data/**/*.dbf", "dbf.hexpat", False),
         "bininfo_bin": Format("data/**/bininfo.bin", "bininfo_bin.hexpat", False),
         "fonts_hdr": Format("data/**/fonts.hdr", "fonts_hdr.hexpat", False),
-        "fonts_raw": Format("data/**/fonts.raw", "fonts_raw.hexpat", False),
+        "fonts_raw": Format("data/**/fonts/*.raw", "fonts_raw.hexpat", False),
+        # "fonts_dat": Format("data/**/fonts.dat", "fonts_dat.hexpat", False), # TODO
         "gradient_dat": Format("data/**/gradient.dat", "gradient_dat.hexpat", False),
         "npc": Format("data/**/*.npc", "npc.hexpat", False),
         "pcg": Format("data/**/*.pcg", "pcg.hexpat", True),
