@@ -639,7 +639,7 @@ class ImHexValidateSubcommand(Subcommand):
         "bininfo_bin": Format("data/**/bininfo.bin", "bininfo_bin.hexpat", False),
         "fonts_hdr": Format("data/**/fonts.hdr", "fonts_hdr.hexpat", False),
         "fonts_raw": Format("data/**/fonts/*.raw", "fonts_raw.hexpat", False),
-        # "fonts_dat": Format("data/**/fonts.dat", "fonts_dat.hexpat", False), # TODO
+        "fonts_dat": Format("data/**/fonts.dat", "fonts_dat.hexpat", False),
         "gradient_dat": Format("data/**/gradient.dat", "gradient_dat.hexpat", False),
         "npc": Format("data/**/*.npc", "npc.hexpat", False),
         "pcg": Format("data/**/*.pcg", "pcg.hexpat", True),
@@ -683,8 +683,12 @@ class ImHexValidateSubcommand(Subcommand):
         for format_name, format in ImHexValidateSubcommand.FORMATS.items():
             if format_name not in formats:
                 continue
+            if args.verbose:
+                print(f"Processing format: {format_name}")
             for input_str in glob.glob(str(args.fror / format.glob), recursive=True):
                 input = pathlib.Path(input_str)
+                if args.verbose:
+                    print(f"Processing input: {input}")
                 decompressed_input = input
                 tmp_ctx = (
                     tempfile.TemporaryDirectory()

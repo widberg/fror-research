@@ -22,3 +22,7 @@ struct Vec2U16Float {
     U16Float x;
     U16Float y;
 };
+
+struct Luminance {
+    u8 l;
+} [[color(std::format("{0:02X}{0:02X}{0:02X}", l))]];
