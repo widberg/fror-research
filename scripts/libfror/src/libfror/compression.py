@@ -1,6 +1,6 @@
 from io import BytesIO
 import zlib
-from .binread import BinaryReader, BinaryWriter, Endianness
+from .binrw import BinaryReader, BinaryWriter, Endianness
 
 
 def decompress(binary_reader: BinaryReader) -> bytes:

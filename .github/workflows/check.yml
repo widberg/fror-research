@@ -16,4 +16,4 @@ jobs:
     - name: Black
       run: uv run black --check --diff scripts
     - name: mypy
-      run: uv run mypy --explicit-package-bases scripts/fror
+      run: uv run mypy --explicit-package-bases -p libfror -p fror

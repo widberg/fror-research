@@ -1,6 +1,6 @@
 from enum import IntEnum, StrEnum
 import os
-from .binread import BinWrite, BinaryReader, BinaryWriter, Endianness, BinRead, align_to
+from .binrw import BinWrite, BinaryReader, BinaryWriter, Endianness, BinRead, align_to
 from dataclasses import dataclass
 import zlib
 
@@ -899,6 +899,7 @@ class TexturesPcEntry4(BinRead):
                     return DDSPixelFormat.from_bc1()
                 case 3:
                     return DDSPixelFormat.from_bc2()
+        assert False
 
     def get_dds_pixel_format(self) -> DDSPixelFormat:
         return TexturesPcEntry4.get_dds_pixel_format_from_encoding_and_flags(

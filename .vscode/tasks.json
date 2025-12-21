@@ -9,10 +9,13 @@
 				"-m",
 				"mypy",
 				"--explicit-package-bases",
+				"-p",
+				"libfror",
+				"-p",
 				"fror"
 			],
 			"options": {
-				"cwd": "${workspaceFolder}/scripts/"
+				"cwd": "${workspaceFolder}"
 			},
 			"problemMatcher": [],
 			"detail": "Run mypy"

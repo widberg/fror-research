@@ -4,8 +4,8 @@ import bpy
 from bpy_extras.io_utils import ImportHelper
 from bpy.types import Operator
 
-from libfror.binread import Endianness
-from libfror.decompress import get_decompressed_binary_reader
+from libfror.binrw import Endianness
+from libfror.compression import get_decompressed_binary_reader
 from libfror.types import ThreeDObjsPc, VertexBuffer, Mesh
 
 

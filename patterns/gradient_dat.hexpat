@@ -1,3 +1,5 @@
+import std.mem;
+import std.sys;
 import type.color;
 
 struct Gradient {
@@ -12,3 +14,5 @@ struct GradientDat {
 };
 
 GradientDat gradient_dat @ 0x0;
+
+std::assert(std::mem::eof(), "Did not consume whole input");

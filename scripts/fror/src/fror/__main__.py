@@ -6,24 +6,22 @@ import pathlib
 import typing
 import abc
 import subprocess
-import glob
 import tempfile
 
 from annotated_types import Len
 from pydantic import BaseModel, ConfigDict
 
-from libfror.decompress import (
+from libfror.compression import (
     compress_and_write,
     get_decompressed_binary_reader,
 )
-from libfror.binread import BinaryReader, BinaryWriter, Endianness
+from libfror.binrw import BinaryReader, BinaryWriter, Endianness
 from libfror.types import (
     DBF,
     NPC,
     PCG,
     DDSHeader,
     DDSPixelFormat,
-    DDSPixelFormatFourCC,
     PCGData,
     PCGEntry,
     TexturesPc,
@@ -685,8 +683,7 @@ class ImHexValidateSubcommand(Subcommand):
                 continue
             if args.verbose:
                 print(f"Processing format: {format_name}")
-            for input_str in glob.glob(str(args.fror / format.glob), recursive=True):
-                input = pathlib.Path(input_str)
+            for input in args.fror.glob(format.glob):
                 if args.verbose:
                     print(f"Processing input: {input}")
                 decompressed_input = input
