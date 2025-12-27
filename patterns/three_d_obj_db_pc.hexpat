@@ -1,6 +1,9 @@
 import std.core;
 import std.sys;
 
+// The string "3d objects scene definitions file is corrupted" associated with the `3dobjdb.pc`
+// files implies that `3dobjdb.pc` files are 3d objects scene definitions files.
+
 struct ThreeDObjDbPcEntryEntry {
     float floats[15];
     u32 data[23-15];

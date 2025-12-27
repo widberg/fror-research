@@ -25,6 +25,14 @@ def triangle_strip_to_indexed_triangles(strip_indices):
     return indexed_triangles
 
 
+def fror_to_blender(position: tuple[float, float, float]) -> tuple[float, float, float]:
+    return (position[0], position[2], position[1])
+
+
+def fror_to_blender_uvs2(position: tuple[float, float]) -> tuple[float, float]:
+    return (position[0], 1 - position[1])
+
+
 class ImportFROR(Operator, ImportHelper):  # type: ignore
     bl_idname = "fror_blender.import_fror"
     bl_label = "Import Ford Racing Off Road"
@@ -79,23 +87,36 @@ class ImportFROR(Operator, ImportHelper):  # type: ignore
             assert len(decompressed_data_binary_reader.read()) == 0
 
         for i in range(len(vertex_buffers)):
-            first_mesh = Mesh(vertex_buffers[i], three_d_objs_pc.ngon_buffers[i])
-
-            verts = first_mesh.vertex_buffer.positions
-            mesh = bpy.data.meshes.new("myBeautifulMesh" + str(i))  # type: ignore
+            mesh = bpy.data.meshes.new(f"myBeautifulMesh{i}")  # type: ignore
             obj = bpy.data.objects.new(mesh.name, mesh)  # type: ignore
             col = bpy.data.collections["Collection"]  # type: ignore
             col.objects.link(obj)  # type: ignore
             bpy.context.view_layer.objects.active = obj  # type: ignore
 
+            first_mesh = Mesh(
+                vertex_buffers[i], three_d_objs_pc.triangle_strip_buffers[i]
+            )
             verts = first_mesh.vertex_buffer.positions
+            uvs = first_mesh.vertex_buffer.uvs
+            uvs2 = first_mesh.vertex_buffer.uvs2
+
+            blender_verts = list(map(fror_to_blender, verts))
+
             edges: list[tuple[int, int]] = []
             faces = []
-            for ngon in first_mesh.ngon_buffer.ngons:
+            for ngon in first_mesh.triangle_strip_buffer.triangle_strips:
                 indexed_triangles = triangle_strip_to_indexed_triangles(ngon.indices)
                 faces.extend(indexed_triangles)
 
-            mesh.from_pydata(verts, edges, faces)
+            mesh.from_pydata(blender_verts, edges, faces)
+
+            if uvs2 is not None:
+                blender_uvs2 = list(map(fror_to_blender_uvs2, uvs2))
+                uv_layer = mesh.uv_layers.new()
+                for polygon in mesh.polygons:
+                    for loop_index in polygon.loop_indices:
+                        vertex_index = mesh.loops[loop_index].vertex_index
+                        uv_layer.data[loop_index].uv = blender_uvs2[vertex_index]
 
         return {"FINISHED"}
 

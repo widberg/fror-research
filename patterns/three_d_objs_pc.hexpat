@@ -2,21 +2,26 @@
 
 import std.core;
 import std.mem;
+import std.sys;
 
-struct ThreeDObjsPcEntry {
-    float a[12];
-    u16 the_first;
-    u16 m;
+struct ObjectThing {
+    u16 length; // Number of mesh descriptions to include starting with begin.
+    u16 flags;
     u32 n;
-    u32 o;
+    std::assert(n == 0, "n != 0");
+    u32 begin; // Index in parent.parent.mesh_descriptors
     u32 p;
-    u16 the_second;
-    u16 q;
-    u32 r;
-    u32 s;
-    u32 t;
+    std::assert(p == 0, "p != 0");
+};
+
+struct Object {
+    float transformation[12]; // 3x4 row-major transformation matrix.
+    ObjectThing visible;
+    ObjectThing shadow;
     u32 u;
+    std::assert(u == 0, "u != 0");
     u32 v;
+    std::assert(v == 0, "v != 0");
     u32 w;
     u32 x;
 };
@@ -24,13 +29,12 @@ struct ThreeDObjsPcEntry {
 fn calculate_sum(auto arr) {
     u32 sum = 0;
     for (u32 i = 0, i < std::core::member_count(arr), i += 1) {
-        ThreeDObjsPcEntry elm = arr[i];
-        sum += elm.the_first + elm.the_second;
+        sum += arr[i].visible.length + arr[i].shadow.length;
     }
     return sum;
 };
 
-fn calculate_size(u32 flags, s16 w) {
+fn calculate_size(u32 flags, s16 texture_index) {
     u32 size = 20;
     u8 cursor_0 = (flags >> 0) & 0xFF;
     u8 cursor_1 = (flags >> 8) & 0xFF;
@@ -40,7 +44,7 @@ fn calculate_size(u32 flags, s16 w) {
         size += 20;
     if ( (cursor_1 & 1) != 0 )
         size += 4;
-    if ( w == -1 || (cursor_0 & 2) != 0 || (cursor_0 & 4) != 0 )
+    if ( texture_index == -1 || (cursor_0 & 2) != 0 || (cursor_0 & 4) != 0 )
         size += 4;
     if ( (cursor_0 & 8) != 0 )
         size += 4;
@@ -61,29 +65,31 @@ fn calculate_size(u32 flags, s16 w) {
 
 struct MeshDescriptor {
     u32 flags;
-    s16 w;
+    s16 texture_index; // The texture index in the DDS textures in textures.pc.
     u16 num_vertices;
-    u16 num_ngons;
-    u8 data[calculate_size(flags, w) - 4 - 2 - 2 - 2];
+    u16 num_triangle_strips;
+    u8 data[calculate_size(flags, texture_index) - 4 - 2 - 2 - 2];
 };
 
-struct NGon {
+struct TriangleStrip {
     u16 num_indices;
     u16 indices[num_indices];
 };
 
-struct NGonBuffer {
+struct TriangleStripBuffer {
     u32 i = std::core::array_index();
-    NGon ngons[parent.mesh_descriptors[i].num_ngons];
+    TriangleStrip triangle_strips[parent.mesh_descriptors[i].num_triangle_strips];
 };
 
 struct ThreeDObjsPc {
-    u32 num_entries;
+    u32 num_objects;
     padding[0xC]; // (cursor + 19) & 0xF0; WTF?
-    ThreeDObjsPcEntry entries[num_entries];
-    u32 sum = calculate_sum(entries) [[export]];
+    Object objects[num_objects];
+    u32 sum = calculate_sum(objects) [[export]];
     MeshDescriptor mesh_descriptors[sum];
-    NGonBuffer ngon_buffers[sum];
+    TriangleStripBuffer triangle_strip_buffers[sum];
 };
 
 ThreeDObjsPc three_d_objs_pc @ 0x0;
+
+std::assert($ == std::mem::size(), "Did not consume whole input");

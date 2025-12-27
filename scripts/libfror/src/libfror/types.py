@@ -1,5 +1,6 @@
 from enum import IntEnum, StrEnum
 import os
+import typing
 from .binrw import BinWrite, BinaryReader, BinaryWriter, Endianness, BinRead, align_to
 from dataclasses import dataclass
 import zlib
@@ -89,7 +90,7 @@ class MeshDescriptor(BinRead):
     flags: int
     w: int
     num_vertices: int
-    num_ngons: int
+    num_triangle_strips: int
     data: bytes
 
     @classmethod
@@ -99,29 +100,29 @@ class MeshDescriptor(BinRead):
         flags = binary_reader.read_u32(endianness)
         w = binary_reader.read_s16(endianness)
         num_vertices = binary_reader.read_u16(endianness)
-        num_ngons = binary_reader.read_u16(endianness)
+        num_triangle_strips = binary_reader.read_u16(endianness)
         data = binary_reader.read(calculate_size(flags, w) - 4 - 2 - 2 - 2)
-        return MeshDescriptor(flags, w, num_vertices, num_ngons, data)
+        return MeshDescriptor(flags, w, num_vertices, num_triangle_strips, data)
 
 
 @dataclass
-class NGon(BinRead):
+class TriangleStrip(BinRead):
     indices: list[int]
 
     @classmethod
     def binread(
         cls, binary_reader: BinaryReader, args: None, endianness: Endianness
-    ) -> "NGon":
+    ) -> "TriangleStrip":
         num_indices = binary_reader.read_u16(endianness)
         indices = binary_reader.read_list(
             num_indices, BinaryReader.read_u16_args, None, endianness
         )
-        return NGon(indices)
+        return TriangleStrip(indices)
 
 
 @dataclass
-class NGonBuffer(BinRead):
-    ngons: list[NGon]
+class TriangleStripBuffer(BinRead):
+    triangle_strips: list[TriangleStrip]
 
     @classmethod
     def binread(
@@ -129,19 +130,19 @@ class NGonBuffer(BinRead):
         binary_reader: BinaryReader,
         args: tuple[MeshDescriptor, None],
         endianness: Endianness,
-    ) -> "NGonBuffer":
+    ) -> "TriangleStripBuffer":
         mesh_descriptor, _ = args
-        ngons = binary_reader.read_list(
-            mesh_descriptor.num_ngons, NGon.binread, None, endianness
+        triangle_strips = binary_reader.read_list(
+            mesh_descriptor.num_triangle_strips, TriangleStrip.binread, None, endianness
         )
-        return NGonBuffer(ngons)
+        return TriangleStripBuffer(triangle_strips)
 
 
 @dataclass
 class ThreeDObjsPc(BinRead):
     entries: list[ThreeDObjsPcEntry]
     mesh_descriptors: list[MeshDescriptor]
-    ngon_buffers: list[NGonBuffer]
+    triangle_strip_buffers: list[TriangleStripBuffer]
 
     @classmethod
     def binread(
@@ -156,22 +157,22 @@ class ThreeDObjsPc(BinRead):
         mesh_descriptors = binary_reader.read_list(
             sum, MeshDescriptor.binread, None, endianness
         )
-        ngon_buffers = binary_reader.read_list_iter(
-            mesh_descriptors, NGonBuffer.binread, None, endianness
+        triangle_strip_buffers = binary_reader.read_list_iter(
+            mesh_descriptors, TriangleStripBuffer.binread, None, endianness
         )
-        return ThreeDObjsPc(entries, mesh_descriptors, ngon_buffers)
+        return ThreeDObjsPc(entries, mesh_descriptors, triangle_strip_buffers)
 
 
 def read_u16_float(binary_reader: BinaryReader, args: None, endianness: Endianness):
     value = binary_reader.read_u16(endianness)
-    return float(value) / 0xFFFF
+    return float(value) / 0x800
 
 
 @dataclass
 class VertexBuffer(BinRead):
     positions: list[tuple[float, float, float]]
     uvs: list[tuple[float, float]]
-    uvs2: list[tuple[float, float]]
+    uvs2: typing.Optional[list[tuple[float, float]]]
 
     @classmethod
     def binread(
@@ -192,7 +193,7 @@ class VertexBuffer(BinRead):
             None,
             endianness,
         )
-        uvs2 = []
+        uvs2 = None
         if w >= 0:
             uvs2 = binary_reader.read_list(
                 num_vertices,
@@ -206,7 +207,7 @@ class VertexBuffer(BinRead):
 @dataclass
 class Mesh:
     vertex_buffer: VertexBuffer
-    ngon_buffer: NGonBuffer
+    triangle_strip_buffer: TriangleStripBuffer
 
 
 @dataclass
@@ -219,7 +220,7 @@ class DBFEntry(BinRead):
     @classmethod
     def binread(
         cls, binary_reader: BinaryReader, args: None, endianness: Endianness
-    ) -> DBFEntry:
+    ) -> "DBFEntry":
         name = binary_reader.read_fixed_size_string(256)
         offset = binary_reader.read_u32(endianness)
         compressed_size = binary_reader.read_u32(endianness)
@@ -310,7 +311,7 @@ class NPCEntry(BinRead):
     @classmethod
     def binread(
         cls, binary_reader: BinaryReader, args: None, endianness: Endianness
-    ) -> NPCEntry:
+    ) -> "NPCEntry":
         name = binary_reader.read_fixed_size_string(64)
         compressed_size = binary_reader.read_u32(endianness)
         assert compressed_size == 0
