@@ -11,6 +11,7 @@ Information that might be useful for modding Ford Racing Off Road (2008) by Razo
 * [Ford Racing Off Road on SteamDB](https://steamdb.info/app/315740/)
 * [Ford Racing Off Road on speedrun.com](https://www.speedrun.com/fordracing_offroad)
 * [[PS2] Ford Racing 2 USA Beta [SLUS-20788] [2003-07-28].7z (1.3 MB) on debugging.games](https://debugging.games/)
+* [Ford Racing Off Road PC 100% Save Game on savegame.pro](https://savegame.pro/pc-ford-racing-off-road-savegame/)
 
 ## Prior Work
 
@@ -36,24 +37,29 @@ Standard formats
 
 Ford Racing Off Road formats
 
-| Glob | Type | Compressed |
-| --- | --- | --- |
-| `*.dbf` | | False |
-| `*.npc` | | False |
-| `*.pcg` | | True |
-| `*.pse` | Particle Effects/text | False |
-| `*.pvs` | [Potentially visible set](https://en.wikipedia.org/wiki/Potentially_visible_set) | True |
-| `*.spc` | | False |
-| `*.ui` | ui/text | False |
-| `3dobjdb.pc` | | False |
-| `3dobjs.pc` | | True |
-| `3dobjsp.pc` | | True |
-| `bininfo.bin` | | False |
-| `fonts.dat` | | False |
-| `fonts.hdr` | | False |
-| `fonts/*.raw` | | False |
-| `gradient.dat` | | False |
-| `textures.pc` | | True |
+| Glob | Type | Compressed | Pattern |
+| --- | --- | --- | --- |
+| `*.dbf` | | False | `dbf.hexpat` |
+| `*.npc` | | False | `npc.hexpat` |
+| `*.pcg` | | True | `pcg.hexpat` |
+| `*.pse` | Particle Effects/text | False |  |
+| `*.pvs` | [Potentially visible set](https://en.wikipedia.org/wiki/Potentially_visible_set) | True | `pvs.hexpat` |
+| `*.spc` | | False | `spc.hexpat` |
+| `*.ui` | ui/text | False |  |
+| `3dobjdb.pc` | | False | `three_d_obj_db_pc.hexpat` |
+| `3dobjs.pc` | | True | `three_d_objs_pc.hexpat` |
+| `3dobjsp.pc` | | True | `three_d_objsp_pc.hexpat` |
+| `bininfo.bin` | | False | `bininfo_bin.hexpat` |
+| `fonts.dat` | | False | `fonts_dat.hexpat` |
+| `fonts.hdr` | | False | `fonts_hdr.hexpat` |
+| `fonts/*.raw` | | False | `fonts_raw.hexpat` |
+| `FORRacing` | Save Game | False | `for_racing.hexpat` |
+| `gradient.dat` | | False | `gradient_dat.hexpat` |
+| `textures.pc` | | True | `textures_pc.hexpat` |
+
+#### ImHex Patterns
+
+The patterns in the `patterns` directory can be run with [ImHex](https://imhex.werwolv.net/).
 
 #### DDS
 
@@ -78,6 +84,16 @@ Then from anywhere on your system you can run:
 ```console
 fror --help
 ```
+
+### Save Editor
+
+Run the following command to open [ImHex](https://imhex.werwolv.net/) in save editor mode with the Ford Racing Off Road save file format pattern loaded.
+
+```console
+imhex --save-editor file patterns/for_racing.hexpat
+```
+
+Once open you can select the save file, for me this is `%AppData%\Ford Racing Off Road\autosave\FORRacing`. But, you can check the [Ford Racing Off Road page on PCGamingWiki](https://www.pcgamingwiki.com/wiki/Ford_Racing:_Off_Road) for alternative locations.
 
 ### Signatures
 
