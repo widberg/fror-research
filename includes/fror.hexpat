@@ -7,20 +7,20 @@ struct Vec3f {
     float z;
 };
 
-fn format_read_u16_float(auto u) {
-    return float(u) / std::limits::u16_max();
+fn format_read_s16_float(auto u) {
+    return float(u) / 0x800;
 };
 
 // FIXME: Is ImHex broken? This doesn't seem to run.
-fn format_write_u16_float(ref str s) {
-    return u16(std::string::parse_float(s) * std::limits::u16_max());
+fn format_write_s16_float(ref str s) {
+    return s16(std::string::parse_float(s) * 0x800);
 };
 
-using U16Float = u16 [[format_read("format_read_u16_float"), format_write("format_write_u16_float")]];
+using S16Float = s16 [[format_read("format_read_s16_float"), format_write("format_write_s16_float")]];
 
-struct Vec2U16Float {
-    U16Float x;
-    U16Float y;
+struct Vec2S16Float {
+    S16Float x;
+    S16Float y;
 };
 
 struct Luminance {

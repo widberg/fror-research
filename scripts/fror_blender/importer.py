@@ -4,6 +4,8 @@ import bpy
 from bpy_extras.io_utils import ImportHelper
 from bpy.types import Operator
 
+import tempfile
+
 from .modules.libfror.binrw import Endianness
 from .modules.libfror.types import ThreeDObjPc
 
@@ -53,6 +55,7 @@ class ImportFROR(Operator, ImportHelper):  # type: ignore
             triangle_strip_buffer = three_d_obj.three_d_objs_pc.triangle_strip_buffers[
                 i
             ]
+            mesh_descriptor = three_d_obj.three_d_objs_pc.mesh_descriptors[i]
 
             verts = vertex_buffer.positions
             uvs = vertex_buffer.uvs
@@ -75,6 +78,41 @@ class ImportFROR(Operator, ImportHelper):  # type: ignore
                     for loop_index in polygon.loop_indices:
                         vertex_index = mesh.loops[loop_index].vertex_index
                         uv_layer.data[loop_index].uv = blender_uvs2[vertex_index]
+
+            if mesh_descriptor.w != -1:
+                textures_pc_entry4 = three_d_obj.textures_pc.entries4[mesh_descriptor.w]
+                dds = textures_pc_entry4.to_dds()
+                with tempfile.NamedTemporaryFile(
+                    "wb", suffix=".dds", delete=False
+                ) as f:
+                    f.write(dds)
+                    path = Path(f.name)
+                image = bpy.data.images.load(str(path))
+                image.use_fake_user = True
+                image.pack()
+                path.unlink()
+
+                material = bpy.data.materials.new("test" + str(i))
+                material.use_nodes = True
+
+                nodes = material.node_tree.nodes
+                links = material.node_tree.links
+
+                nodes.clear()
+
+                image_node = nodes.new("ShaderNodeTexImage")
+                image_node.image = image
+                image_node.extension = "REPEAT"
+
+                bsdf_node = nodes.new("ShaderNodeBsdfPrincipled")
+
+                out_node = nodes.new("ShaderNodeOutputMaterial")
+
+                links.new(image_node.outputs["Color"], bsdf_node.inputs["Base Color"])
+                links.new(image_node.outputs["Alpha"], bsdf_node.inputs["Alpha"])
+                links.new(bsdf_node.outputs["BSDF"], out_node.inputs["Surface"])
+
+                mesh.materials.append(material)
 
         return {"FINISHED"}
 

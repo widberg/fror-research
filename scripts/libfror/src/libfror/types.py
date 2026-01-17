@@ -1,5 +1,6 @@
 from enum import StrEnum
 import os
+from io import BytesIO
 import typing
 from .binrw import BinWrite, BinaryReader, BinaryWriter, Endianness, BinRead, align_to
 from dataclasses import dataclass
@@ -166,7 +167,7 @@ class ThreeDObjsPc(BinRead):
 
 
 def read_u16_float(binary_reader: BinaryReader, args: None, endianness: Endianness):
-    value = binary_reader.read_u16(endianness)
+    value = binary_reader.read_s16(endianness)
     return float(value) / 0x800
 
 
@@ -877,6 +878,19 @@ class TexturesPcEntry4(BinRead, BinWrite):
             value.get_dds_pixel_format(),
         )
         binary_writer.write(value.data)
+
+    def to_dds(self) -> bytes:
+        bytes_io = BytesIO()
+        binary_writer = BinaryWriter(bytes_io)
+        dds_header = DDSHeader(
+            self.width,
+            self.height,
+            self.num_mipmaps + 1,
+            self.get_dds_pixel_format(),
+        )
+        DDSHeader.binwrite(binary_writer, dds_header, None, Endianness.LITTLE)
+        binary_writer.write(self.data)
+        return bytes_io.getvalue()
 
     @staticmethod
     def get_dds_pixel_format_from_encoding_and_flags(

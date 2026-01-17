@@ -2,9 +2,9 @@ import fror;
 
 struct VertexBuffer<auto S, auto B> {
     Vec3f vertices[S];
-    Vec2U16Float uvs[S];
+    Vec2S16Float uvs[S];
     if (B) {
-        Vec2U16Float uvs2[S];
+        Vec2S16Float uvs2[S];
     }
 };
 
