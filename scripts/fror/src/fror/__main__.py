@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict
 from libfror.compression import (
     compress_and_write,
     get_decompressed_binary_reader,
+    get_decompressed_binary_reader_from_path,
 )
 from libfror.binrw import BinaryReader, BinaryWriter, Endianness
 from libfror.types import (
@@ -803,6 +804,39 @@ class ImHexValidateSubcommand(Subcommand):
                         if args.verbose:
                             error += f"\nreturncode: {completed_process.returncode}\nstdout: {completed_process.stdout}\nstderr: {completed_process.stderr}"
                         print(error)
+                        exit(1)
+
+
+class FileCompareSubcommand(Subcommand):
+    NAME = "fcmp"
+
+    @dataclass
+    class Args:
+        old: pathlib.Path
+        new: pathlib.Path
+        decompress: bool
+
+    @classmethod
+    def setup(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("old", type=pathlib.Path)
+        parser.add_argument("new", type=pathlib.Path)
+        parser.add_argument("--decompress", action=argparse.BooleanOptionalAction)
+
+    @classmethod
+    def execute(cls, args: Args) -> None:
+        if args.decompress:
+            old_bytes = get_decompressed_binary_reader_from_path(args.old).read()
+            new_bytes = get_decompressed_binary_reader_from_path(args.new).read()
+        else:
+            old_bytes = args.old.read_bytes()
+            new_bytes = args.new.read_bytes()
+
+        for i, (old_byte, new_byte) in enumerate(zip(old_bytes, new_bytes)):
+            if old_byte != new_byte:
+                print(
+                    f"old_bytes does not match new_bytes. {old_byte} != {new_byte} at 0x{i:X}."
+                )
+                exit(1)
 
 
 def main() -> None:
@@ -822,6 +856,7 @@ def main() -> None:
     ExtractBininfoBinSubcommand.pre_setup(subparsers)
     CreateBininfoBinSubcommand.pre_setup(subparsers)
     ImHexValidateSubcommand.pre_setup(subparsers)
+    FileCompareSubcommand.pre_setup(subparsers)
 
     args = parser.parse_args()
     args.klass.pre_execute(args)
