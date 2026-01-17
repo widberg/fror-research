@@ -1,9 +1,11 @@
-from enum import IntEnum, StrEnum
+from enum import StrEnum
 import os
 import typing
 from .binrw import BinWrite, BinaryReader, BinaryWriter, Endianness, BinRead, align_to
 from dataclasses import dataclass
 import zlib
+from pathlib import Path
+from .compression import get_decompressed_binary_reader_from_path
 
 
 @dataclass
@@ -128,10 +130,10 @@ class TriangleStripBuffer(BinRead):
     def binread(
         cls,
         binary_reader: BinaryReader,
-        args: tuple[MeshDescriptor, None],
+        args: MeshDescriptor,
         endianness: Endianness,
     ) -> "TriangleStripBuffer":
-        mesh_descriptor, _ = args
+        mesh_descriptor = args
         triangle_strips = binary_reader.read_list(
             mesh_descriptor.num_triangle_strips, TriangleStrip.binread, None, endianness
         )
@@ -158,7 +160,7 @@ class ThreeDObjsPc(BinRead):
             sum, MeshDescriptor.binread, None, endianness
         )
         triangle_strip_buffers = binary_reader.read_list_iter(
-            mesh_descriptors, TriangleStripBuffer.binread, None, endianness
+            mesh_descriptors, TriangleStripBuffer.binread, endianness
         )
         return ThreeDObjsPc(entries, mesh_descriptors, triangle_strip_buffers)
 
@@ -202,12 +204,6 @@ class VertexBuffer(BinRead):
                 endianness,
             )
         return VertexBuffer(positions, uvs, uvs2)
-
-
-@dataclass
-class Mesh:
-    vertex_buffer: VertexBuffer
-    triangle_strip_buffer: TriangleStripBuffer
 
 
 @dataclass
@@ -963,4 +959,64 @@ class TexturesPc(BinRead, BinWrite):
         binary_writer.write_u32(value.b, endianness)
         binary_writer.write_list(
             value.entries4, TexturesPcEntry4.binwrite, None, endianness
+        )
+
+
+@dataclass
+class ThreeDObjPc:
+    three_d_obj_db_pc: bytes  # TODO: Real ThreeDObjDBPc type
+    three_d_objs_pc: ThreeDObjsPc
+    three_d_objsp_pc: list[VertexBuffer]
+    bininfo_bin: bytes  # TODO: Real BinInfoBin type
+    textures_pc: TexturesPc
+
+    @classmethod
+    def from_directory_path(cls, path: Path, endianness: Endianness) -> "ThreeDObjPc":
+        three_d_obj_db_pc_path = path / "3dobjdb.pc"
+        three_d_objs_pc_path = path / "3dobjs.pc"
+        three_d_objsp_pc_path = path / "3dobjsp.pc"
+        bininfo_bin_path = path / "bininfo.bin"
+        textures_pc_path = path / "textures.pc"
+
+        # three_d_obj_db_pc
+        three_d_obj_db_pc = three_d_obj_db_pc_path.read_bytes()
+
+        # three_d_objs_pc
+        three_d_objs_pc_binary_reader = get_decompressed_binary_reader_from_path(
+            three_d_objs_pc_path
+        )
+        three_d_objs_pc = ThreeDObjsPc.binread(
+            three_d_objs_pc_binary_reader,
+            None,
+            endianness,
+        )
+        assert len(three_d_objs_pc_binary_reader.read()) == 0
+
+        # three_d_objsp_pc
+        three_d_objsp_pc_binary_reader = get_decompressed_binary_reader_from_path(
+            three_d_objsp_pc_path
+        )
+        three_d_objsp_pc = three_d_objsp_pc_binary_reader.read_list_iter(
+            map(lambda m: (m.num_vertices, m.w), three_d_objs_pc.mesh_descriptors),
+            VertexBuffer.binread,
+            endianness,
+        )
+        assert len(three_d_objsp_pc_binary_reader.read()) == 0
+
+        # bininfo_bin
+        bininfo_bin = bininfo_bin_path.read_bytes()
+
+        # textures_pc
+        textures_pc_binary_reader = get_decompressed_binary_reader_from_path(
+            textures_pc_path
+        )
+        textures_pc = TexturesPc.binread(textures_pc_binary_reader, None, endianness)
+        assert len(textures_pc_binary_reader.read()) == 0
+
+        return ThreeDObjPc(
+            three_d_obj_db_pc,
+            three_d_objs_pc,
+            three_d_objsp_pc,
+            bininfo_bin,
+            textures_pc,
         )

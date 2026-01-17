@@ -1,6 +1,9 @@
+import contextlib
 from io import BytesIO
 import zlib
 from .binrw import BinaryReader, BinaryWriter, Endianness
+import typing
+from pathlib import Path
 
 
 def decompress(binary_reader: BinaryReader) -> bytes:
@@ -11,13 +14,20 @@ def decompress(binary_reader: BinaryReader) -> bytes:
     return decompressed_data
 
 
-def get_decompressed_binary_reader(f) -> BinaryReader:
+def get_decompressed_binary_reader(f: typing.BinaryIO) -> BinaryReader:
     binary_reader = BinaryReader(f)
     decompressed_data = decompress(binary_reader)
     return BinaryReader(BytesIO(decompressed_data))
 
 
-def compress_and_write(data: bytes, f) -> None:
+def get_decompressed_binary_reader_from_path(p: Path) -> BinaryReader:
+    with open(p, "rb") as f:
+        binary_reader = BinaryReader(f)
+        decompressed_data = decompress(binary_reader)
+        return BinaryReader(BytesIO(decompressed_data))
+
+
+def compress_and_write(data: bytes, f: typing.BinaryIO) -> None:
     compressed_data = zlib.compress(data, level=9)
     binary_writer = BinaryWriter(f)
     binary_writer.write_u32(len(data), Endianness.LITTLE)

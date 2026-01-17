@@ -5,8 +5,7 @@ from bpy_extras.io_utils import ImportHelper
 from bpy.types import Operator
 
 from .modules.libfror.binrw import Endianness
-from .modules.libfror.compression import get_decompressed_binary_reader
-from .modules.libfror.types import ThreeDObjsPc, VertexBuffer, Mesh
+from .modules.libfror.types import ThreeDObjPc
 
 
 def triangle_strip_to_indexed_triangles(strip_indices):
@@ -40,71 +39,30 @@ class ImportFROR(Operator, ImportHelper):  # type: ignore
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         directory_path = Path(self.filepath)  # type: ignore
-        three_d_obj_db_pc_path = directory_path / "3dobjdb.pc"
-        three_d_objs_pc_path = directory_path / "3dobjs.pc"  # compressed
-        three_d_objsp_pc_path = directory_path / "3dobjsp.pc"  # compressed
-        bininfo_bin = directory_path / "bininfo.bin"
-        textures_pc = directory_path / "textures.pc"  # compressed
-        succeeded = True
-        files = [
-            three_d_obj_db_pc_path,
-            three_d_objs_pc_path,
-            three_d_objsp_pc_path,
-            bininfo_bin,
-            textures_pc,
-        ]
-        for file in files:
-            if not file.exists():
-                succeeded = False
-                self.report({"ERROR"}, f'"{file}" does not exist.')
-        if not succeeded:
-            return {"CANCELED"}
-
         endianness = Endianness.LITTLE
+        three_d_obj = ThreeDObjPc.from_directory_path(directory_path, endianness)
 
-        with open(three_d_objs_pc_path, "rb") as three_d_objs_pc_file:
-            decompressed_data_binary_reader = get_decompressed_binary_reader(
-                three_d_objs_pc_file
-            )
-            three_d_objs_pc = ThreeDObjsPc.binread(
-                decompressed_data_binary_reader, None, endianness
-            )
-            assert len(decompressed_data_binary_reader.read()) == 0
-
-        with open(three_d_objsp_pc_path, "rb") as three_d_objsp_pc_file:
-            decompressed_data_binary_reader = get_decompressed_binary_reader(
-                three_d_objsp_pc_file
-            )
-            vertex_buffers = []
-            for mesh_descriptor in three_d_objs_pc.mesh_descriptors:
-                vertex_buffers.append(
-                    VertexBuffer.binread(
-                        decompressed_data_binary_reader,
-                        (mesh_descriptor.num_vertices, mesh_descriptor.w),
-                        endianness,
-                    )
-                )
-            assert len(decompressed_data_binary_reader.read()) == 0
-
-        for i in range(len(vertex_buffers)):
+        for i in range(len(three_d_obj.three_d_objsp_pc)):
             mesh = bpy.data.meshes.new(f"myBeautifulMesh{i}")  # type: ignore
             obj = bpy.data.objects.new(mesh.name, mesh)  # type: ignore
             col = bpy.data.collections["Collection"]  # type: ignore
             col.objects.link(obj)  # type: ignore
             bpy.context.view_layer.objects.active = obj  # type: ignore
 
-            first_mesh = Mesh(
-                vertex_buffers[i], three_d_objs_pc.triangle_strip_buffers[i]
-            )
-            verts = first_mesh.vertex_buffer.positions
-            uvs = first_mesh.vertex_buffer.uvs
-            uvs2 = first_mesh.vertex_buffer.uvs2
+            vertex_buffer = three_d_obj.three_d_objsp_pc[i]
+            triangle_strip_buffer = three_d_obj.three_d_objs_pc.triangle_strip_buffers[
+                i
+            ]
+
+            verts = vertex_buffer.positions
+            uvs = vertex_buffer.uvs
+            uvs2 = vertex_buffer.uvs2
 
             blender_verts = list(map(fror_to_blender, verts))
 
             edges: list[tuple[int, int]] = []
             faces = []
-            for ngon in first_mesh.triangle_strip_buffer.triangle_strips:
+            for ngon in triangle_strip_buffer.triangle_strips:
                 indexed_triangles = triangle_strip_to_indexed_triangles(ngon.indices)
                 faces.extend(indexed_triangles)
 

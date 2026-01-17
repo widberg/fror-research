@@ -86,13 +86,12 @@ class BinaryReader:
     def read_list_iter(
         self,
         iterable: typing.Iterable[I],
-        read_element: typing.Callable[["BinaryReader", tuple[I, A], Endianness], T],
-        args: A,
+        read_element: typing.Callable[["BinaryReader", I, Endianness], T],
         endianness: Endianness,
     ) -> list[T]:
         value = []
         for i in iterable:
-            value.append(read_element(self, (i, args), endianness))
+            value.append(read_element(self, i, endianness))
         return value
 
     def read_tuple_2(
