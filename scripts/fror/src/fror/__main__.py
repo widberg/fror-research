@@ -3,6 +3,7 @@ import contextlib
 from dataclasses import dataclass
 from io import BytesIO
 import pathlib
+import sys
 import typing
 import abc
 import subprocess
@@ -32,6 +33,11 @@ from libfror.types import (
     TexturesPcEntry4,
     BininfoBin,
 )
+
+import logging
+
+
+logging.basicConfig(level=logging.DEBUG, format="%(levelname)s:%(message)s")
 
 
 A = typing.TypeVar("A")
@@ -756,10 +762,10 @@ class ImHexValidateSubcommand(Subcommand):
             if format_name not in formats:
                 continue
             if args.verbose:
-                print(f"Processing format: {format_name}")
+                logging.debug(f"Processing format: {format_name}")
             for input in args.fror.glob(format.glob):
                 if args.verbose:
-                    print(f"Processing input: {input}")
+                    logging.debug(f"Processing input: {input}")
                 decompressed_input = input
                 tmp_ctx = (
                     tempfile.TemporaryDirectory()
@@ -803,8 +809,8 @@ class ImHexValidateSubcommand(Subcommand):
                         error = f"!!! ERROR: Failed to validate {input}"
                         if args.verbose:
                             error += f"\nreturncode: {completed_process.returncode}\nstdout: {completed_process.stdout}\nstderr: {completed_process.stderr}"
-                        print(error)
-                        exit(1)
+                        logging.critical(error)
+                        sys.exit(completed_process.returncode)
 
 
 class FileCompareSubcommand(Subcommand):
@@ -833,10 +839,10 @@ class FileCompareSubcommand(Subcommand):
 
         for i, (old_byte, new_byte) in enumerate(zip(old_bytes, new_bytes)):
             if old_byte != new_byte:
-                print(
+                logging.critical(
                     f"old_bytes does not match new_bytes. {old_byte} != {new_byte} at 0x{i:X}."
                 )
-                exit(1)
+                sys.exit(1)
 
 
 def main() -> None:
