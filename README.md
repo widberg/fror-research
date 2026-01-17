@@ -31,6 +31,7 @@ Standard formats
 | --- | --- |
 | `*.at3` | [ATRAC](https://en.wikipedia.org/wiki/ATRAC)3+ (Adaptive TRansform Acoustic Coding 3+) |
 | `*.dds` | [DirectDraw Surface](https://en.wikipedia.org/wiki/DirectDraw_Surface) |
+| `*.url` | [URL File Format](https://web.archive.org/web/20240128011848/http://www.lyberty.com/encyc/articles/tech/dot_url_format_-_an_unofficial_guide.html) |
 | `*.wav` | [Waveform Audio File Format (WAVE)](https://en.wikipedia.org/wiki/WAV) |
 | `*.wiv` | Uncompressed [WAVE](https://en.wikipedia.org/wiki/WAV) |
 | `*.WMA` | [Windows Media Audio](https://en.wikipedia.org/wiki/Windows_Media_Audio) |
