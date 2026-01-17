@@ -29,6 +29,7 @@ from libfror.types import (
     TexturesPcEntry2,
     TexturesPcEntry3,
     TexturesPcEntry4,
+    BininfoBin,
 )
 
 
@@ -623,6 +624,78 @@ class CreateTexturesPcSubcommand(Subcommand):
             compress_and_write(bytes_io.getvalue(), textures_pc_file)
 
 
+class BininfoBinManifest(BaseModel):
+    groups: list[list[str]]
+
+    @staticmethod
+    def from_bininfo_bin(bininfo_bin: BininfoBin) -> "BininfoBinManifest":
+        return BininfoBinManifest(
+            groups=bininfo_bin.groups,
+        )
+
+    def to_bininfo_bin(self) -> "BininfoBin":
+        return BininfoBin(
+            self.groups,
+        )
+
+
+class ExtractBininfoBinSubcommand(Subcommand):
+    NAME = "xbib"
+
+    @dataclass
+    class Args:
+        bininfo_bin: pathlib.Path
+        bininfo_bin_json: pathlib.Path
+
+    @classmethod
+    def setup(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("bininfo_bin", type=pathlib.Path)
+        parser.add_argument("bininfo_bin_json", type=pathlib.Path)
+
+    @classmethod
+    def execute(cls, args: Args) -> None:
+        with open(args.bininfo_bin, "rb") as bininfo_bin:
+            binary_reader = BinaryReader(bininfo_bin)
+            parsed_bininfo_bin = BininfoBin.binread(
+                binary_reader, None, Endianness.LITTLE
+            )
+
+            bininfo_bin_manifest = BininfoBinManifest.from_bininfo_bin(
+                parsed_bininfo_bin
+            )
+            pcg_manifest_json = bininfo_bin_manifest.model_dump_json(
+                indent=2, round_trip=True
+            )
+
+            args.bininfo_bin_json.write_text(pcg_manifest_json)
+
+
+class CreateBininfoBinSubcommand(Subcommand):
+    NAME = "cbib"
+
+    @dataclass
+    class Args:
+        bininfo_bin_json: pathlib.Path
+        bininfo_bin: pathlib.Path
+
+    @classmethod
+    def setup(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("bininfo_bin_json", type=pathlib.Path)
+        parser.add_argument("bininfo_bin", type=pathlib.Path)
+
+    @classmethod
+    def execute(cls, args: Args) -> None:
+        bininfo_bin_manifest_json = args.bininfo_bin_json.read_text()
+        bininfo_bin_manifest = BininfoBinManifest.model_validate_json(
+            bininfo_bin_manifest_json
+        )
+        bininfo_bin = bininfo_bin_manifest.to_bininfo_bin()
+
+        with open(args.bininfo_bin, "wb") as bininfo_bin_file:
+            binary_writer = BinaryWriter(bininfo_bin_file)
+            BininfoBin.binwrite(binary_writer, bininfo_bin, None, Endianness.LITTLE)
+
+
 class ImHexValidateSubcommand(Subcommand):
     NAME = "imhex"
 
@@ -746,6 +819,8 @@ def main() -> None:
     CreatePCGSubcommand.pre_setup(subparsers)
     ExtractTexturesPcSubcommand.pre_setup(subparsers)
     CreateTexturesPcSubcommand.pre_setup(subparsers)
+    ExtractBininfoBinSubcommand.pre_setup(subparsers)
+    CreateBininfoBinSubcommand.pre_setup(subparsers)
     ImHexValidateSubcommand.pre_setup(subparsers)
 
     args = parser.parse_args()

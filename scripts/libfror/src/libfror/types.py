@@ -861,7 +861,7 @@ class TexturesPcEntry4(BinRead, BinWrite):
         binary_writer.write_u32(value.flags, endianness)
         binary_writer.write_u32(value.b, endianness)
         binary_writer.write_u32(len(value.name) + 1, endianness)
-        binary_writer.write_fixed_size_string(value.name, len(value.name) + 1)
+        binary_writer.write_null_terminated_string(value.name)
         binary_writer.write_u32(value.encoding, endianness)
         binary_writer.write_u32(value.num_mipmaps, endianness)
         binary_writer.write_float(value.e, endianness)
@@ -977,39 +977,56 @@ class TexturesPc(BinRead, BinWrite):
 
 
 @dataclass
-class BininfoBin(BinRead):
+class BininfoBin(BinRead, BinWrite):
     groups: list[list[str]]
-
-    @staticmethod
-    def binread_bininfo_bin_string(
-        binary_reader: BinaryReader, args: None, endianness: Endianness
-    ) -> str:
-        offset = binary_reader.read_u32(endianness)
-        pos = binary_reader.tell()
-        binary_reader.seek(offset)
-        data = binary_reader.read_null_terminated_string()
-        binary_reader.seek(pos)
-        return data
-
-    @classmethod
-    def binread_bininfo_bin_string_group(
-        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
-    ) -> list[str]:
-        num_strings = binary_reader.read_u32(endianness)
-        strings = binary_reader.read_list(
-            num_strings, cls.binread_bininfo_bin_string, None, endianness
-        )
-        return strings
 
     @classmethod
     def binread(
         cls, binary_reader: BinaryReader, args: None, endianness: Endianness
     ) -> "BininfoBin":
+        groups = []
         size = binary_reader.read_u32(endianness)
-        groups = binary_reader.read_list(
-            12, cls.binread_bininfo_bin_string_group, None, endianness
-        )
+        for _ in range(12):
+            strings = []
+            num_strings = binary_reader.read_u32(endianness)
+            for _ in range(num_strings):
+                offset = binary_reader.read_u32(endianness)
+                pos = binary_reader.tell()
+                binary_reader.seek(offset)
+                string = binary_reader.read_null_terminated_string()
+                binary_reader.seek(pos)
+                strings.append(string)
+            groups.append(strings)
         return BininfoBin(groups)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "BininfoBin",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert len(value.groups) == 12
+        end_of_header = (
+            4 + 4 * len(value.groups) + 4 * sum(len(x) for x in value.groups)
+        )
+        binary_writer.write_u32(0, endianness)
+        for group in value.groups:
+            binary_writer.write_u32(len(group), endianness)  # num_strings
+            for string in group:
+                pos = binary_writer.tell()
+                binary_writer.seek(0, os.SEEK_END)
+                if binary_writer.tell() < end_of_header:
+                    binary_writer.seek(end_of_header)
+                offset = binary_writer.tell()
+                binary_writer.write_null_terminated_string(string)
+                binary_writer.seek(pos)
+                binary_writer.write_u32(offset, endianness)
+        binary_writer.seek(0, os.SEEK_END)
+        size = binary_writer.tell()
+        binary_writer.seek(0)
+        binary_writer.write_u32(size, endianness)  # size
 
 
 @dataclass

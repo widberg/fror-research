@@ -160,6 +160,10 @@ class BinaryWriter:
     def write_string(self, value: str, encoding: str = "ascii") -> None:
         self.write(value.encode(encoding))
 
+    def write_null_terminated_string(self, value: str, encoding: str = "ascii") -> None:
+        self.write_string(value, encoding)
+        self.write_u8(0, Endianness.NATIVE)
+
     def write_fixed_size_string(
         self, value: str, size: int, encoding: str = "ascii"
     ) -> None:
@@ -174,6 +178,12 @@ class BinaryWriter:
         s = struct.Struct(str(endianness) + format)
         data = s.pack(value)
         self.write(data)
+
+    def write_u8(self, value: int, endianness: Endianness) -> None:
+        self.write_struct(value, "B", endianness)
+
+    def write_u8_args(self, value: int, args: None, endianness: Endianness) -> None:
+        self.write_u8(value, endianness)
 
     def write_u32(self, value: int, endianness: Endianness) -> None:
         self.write_struct(value, "I", endianness)
