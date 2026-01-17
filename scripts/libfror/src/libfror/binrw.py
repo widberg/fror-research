@@ -45,6 +45,15 @@ class BinaryReader:
         bs = self.read(s.size)
         return s.unpack(bs)
 
+    def read_null_terminated_string(self, encoding: str = "ascii") -> str:
+        value: bytearray = bytearray()
+        while True:
+            c = self.read_u8(Endianness.NATIVE)
+            if c == 0:
+                break
+            value.append(c)
+        return value.decode(encoding)
+
     def read_fixed_size_string(self, size: int, encoding: str = "ascii") -> str:
         value: bytes = self.read_struct(str(size) + "s", Endianness.LITTLE)[0]
         value = value.rstrip(b"\0")
@@ -64,6 +73,12 @@ class BinaryReader:
 
     def read_u16_args(self, args: None, endianness: Endianness) -> int:
         return self.read_u16(endianness)
+
+    def read_u8(self, endianness: Endianness) -> int:
+        return self.read_struct("B", endianness)[0]
+
+    def read_u8_args(self, args: None, endianness: Endianness) -> int:
+        return self.read_u8(endianness)
 
     def read_float(self, endianness: Endianness) -> float:
         return self.read_struct("f", endianness)[0]

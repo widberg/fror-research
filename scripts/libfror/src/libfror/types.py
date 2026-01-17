@@ -712,7 +712,7 @@ class DDSHeader(BinWrite, BinRead):
 
 
 @dataclass
-class TexturesPcEntry(BinRead):
+class TexturesPcEntry(BinRead, BinWrite):
     data: bytes
 
     @classmethod
@@ -735,7 +735,7 @@ class TexturesPcEntry(BinRead):
 
 
 @dataclass
-class TexturesPcEntry2(BinRead):
+class TexturesPcEntry2(BinRead, BinWrite):
     data: bytes
 
     @classmethod
@@ -758,7 +758,7 @@ class TexturesPcEntry2(BinRead):
 
 
 @dataclass
-class TexturesPcEntry3(BinRead):
+class TexturesPcEntry3(BinRead, BinWrite):
     data: bytes
 
     @classmethod
@@ -805,7 +805,7 @@ def calculate_dds_data_size(
 
 
 @dataclass
-class TexturesPcEntry4(BinRead):
+class TexturesPcEntry4(BinRead, BinWrite):
     flags: int
     b: int
     name: str
@@ -963,11 +963,47 @@ class TexturesPc(BinRead, BinWrite):
 
 
 @dataclass
+class BininfoBin(BinRead):
+    groups: list[list[str]]
+
+    @staticmethod
+    def binread_bininfo_bin_string(
+        binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> str:
+        offset = binary_reader.read_u32(endianness)
+        pos = binary_reader.tell()
+        binary_reader.seek(offset)
+        data = binary_reader.read_null_terminated_string()
+        binary_reader.seek(pos)
+        return data
+
+    @classmethod
+    def binread_bininfo_bin_string_group(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> list[str]:
+        num_strings = binary_reader.read_u32(endianness)
+        strings = binary_reader.read_list(
+            num_strings, cls.binread_bininfo_bin_string, None, endianness
+        )
+        return strings
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "BininfoBin":
+        size = binary_reader.read_u32(endianness)
+        groups = binary_reader.read_list(
+            12, cls.binread_bininfo_bin_string_group, None, endianness
+        )
+        return BininfoBin(groups)
+
+
+@dataclass
 class ThreeDObjPc:
     three_d_obj_db_pc: bytes  # TODO: Real ThreeDObjDBPc type
     three_d_objs_pc: ThreeDObjsPc
     three_d_objsp_pc: list[VertexBuffer]
-    bininfo_bin: bytes  # TODO: Real BinInfoBin type
+    bininfo_bin: BininfoBin
     textures_pc: TexturesPc
 
     @classmethod
@@ -1004,7 +1040,11 @@ class ThreeDObjPc:
         assert len(three_d_objsp_pc_binary_reader.read()) == 0
 
         # bininfo_bin
-        bininfo_bin = bininfo_bin_path.read_bytes()
+        with open(bininfo_bin_path, "rb") as f:
+            bininfo_bin_binary_reader = BinaryReader(f)
+            bininfo_bin = BininfoBin.binread(
+                bininfo_bin_binary_reader, None, endianness
+            )
 
         # textures_pc
         textures_pc_binary_reader = get_decompressed_binary_reader_from_path(
