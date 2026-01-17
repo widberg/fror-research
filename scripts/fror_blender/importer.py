@@ -4,9 +4,9 @@ import bpy
 from bpy_extras.io_utils import ImportHelper
 from bpy.types import Operator
 
-from libfror.binrw import Endianness
-from libfror.compression import get_decompressed_binary_reader
-from libfror.types import ThreeDObjsPc, VertexBuffer, Mesh
+from .modules.libfror.binrw import Endianness
+from .modules.libfror.compression import get_decompressed_binary_reader
+from .modules.libfror.types import ThreeDObjsPc, VertexBuffer, Mesh
 
 
 def triangle_strip_to_indexed_triangles(strip_indices):
