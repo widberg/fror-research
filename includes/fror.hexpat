@@ -7,12 +7,11 @@ struct Vec3f {
     float z;
 };
 
-fn format_read_s16_float(auto u) {
-    return float(u) / 0x800;
+fn format_read_s16_float(s16 v) {
+    return float(v) / 0x800;
 };
 
-// FIXME: Is ImHex broken? This doesn't seem to run.
-fn format_write_s16_float(ref str s) {
+fn format_write_s16_float(str s) {
     return s16(std::string::parse_float(s) * 0x800);
 };
 

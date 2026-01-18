@@ -253,6 +253,7 @@ class PCGEntryManifest(BaseModel):
     j: typing.Annotated[bytes, Len(min_length=84, max_length=84)]
 
     model_config = ConfigDict(
+        extra='forbid',
         ser_json_bytes="hex",
         val_json_bytes="hex",
     )
@@ -297,6 +298,10 @@ class PCGManifest(BaseModel):
     checksum_or_time: int
     a: int
     entries: list[PCGEntryManifest]
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
 
     @staticmethod
     def from_pcg(pcg: PCG) -> "PCGManifest":
@@ -402,6 +407,7 @@ class TexturesPcEntryManifest(BaseModel):
     data: typing.Annotated[bytes, Len(min_length=0x400, max_length=0x400)]
 
     model_config = ConfigDict(
+        extra='forbid',
         ser_json_bytes="hex",
         val_json_bytes="hex",
     )
@@ -420,6 +426,7 @@ class TexturesPcEntry2Manifest(BaseModel):
     data: typing.Annotated[bytes, Len(min_length=0x40, max_length=0x40)]
 
     model_config = ConfigDict(
+        extra='forbid',
         ser_json_bytes="hex",
         val_json_bytes="hex",
     )
@@ -438,6 +445,7 @@ class TexturesPcEntry3Manifest(BaseModel):
     data: typing.Annotated[bytes, Len(min_length=0x400, max_length=0x400)]
 
     model_config = ConfigDict(
+        extra='forbid',
         ser_json_bytes="hex",
         val_json_bytes="hex",
     )
@@ -461,6 +469,10 @@ class TexturesPcEntry4Manifest(BaseModel):
     h: int
     i: int
     j: int
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
 
     @staticmethod
     def from_textures_pc_entry4(
@@ -500,6 +512,10 @@ class TexturePcManifest(BaseModel):
     entries3: list[TexturesPcEntry3Manifest]
     b: int
     entries4: list[TexturesPcEntry4Manifest]
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
 
     @staticmethod
     def from_textures_pc(textures_pc: TexturesPc) -> "TexturePcManifest":
@@ -633,6 +649,10 @@ class CreateTexturesPcSubcommand(Subcommand):
 
 class BininfoBinManifest(BaseModel):
     groups: list[list[str]]
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
 
     @staticmethod
     def from_bininfo_bin(bininfo_bin: BininfoBin) -> "BininfoBinManifest":
