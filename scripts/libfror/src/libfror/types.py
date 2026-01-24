@@ -1,4 +1,4 @@
-from enum import StrEnum
+from enum import ReprEnum
 import os
 from io import BytesIO
 import typing
@@ -7,6 +7,29 @@ from dataclasses import dataclass
 import zlib
 from pathlib import Path
 from .compression import get_decompressed_binary_reader_from_path
+
+
+@dataclass(frozen=True)
+class FileFormat:
+    name: str
+    glob: str
+    compressed: bool
+
+
+DBF_FILE_FORMAT = FileFormat("dbf", "data/**/*.dbf", False)
+BININFO_BIN_FILE_FORMAT = FileFormat("bininfo_bin", "data/**/bininfo.bin", False)
+FONTS_HDR_FILE_FORMAT = FileFormat("fonts_hdr", "data/**/fonts.hdr", False)
+FONTS_RAW_FILE_FORMAT = FileFormat("fonts_raw", "data/**/fonts/*.raw", False)
+FONTS_DAT_FILE_FORMAT = FileFormat("fonts_dat", "data/**/fonts.dat", False)
+GRADIENT_DAT_FILE_FORMAT = FileFormat("gradient_dat", "data/**/gradient.dat", False)
+NPC_FILE_FORMAT = FileFormat("npc", "data/**/*.npc", False)
+PCG_FILE_FORMAT = FileFormat("pcg", "data/**/*.pcg", True)
+PVS_FILE_FORMAT = FileFormat("pvs", "data/**/*.pvs", True)
+SPC_FILE_FORMAT = FileFormat("spc", "data/**/*.spc", False)
+TEXTURES_PC_FILE_FORMAT = FileFormat("textures_pc", "data/**/textures.pc", True)
+THREE_D_OBJ_DB_PC_FILE_FORMAT = FileFormat("3dobjdb_pc", "data/**/3dobjdb.pc", False)
+THREE_D_OBJS_PC_FILE_FORMAT = FileFormat("3dobjs_pc", "data/**/3dobjs.pc", True)
+THREE_D_OBJSP_PC_FILE_FORMAT = FileFormat("3dobjsp_pc", "data/**/3dobjsp.pc", True)
 
 
 @dataclass
@@ -218,7 +241,7 @@ class DBFEntry(BinRead):
     def binread(
         cls, binary_reader: BinaryReader, args: None, endianness: Endianness
     ) -> "DBFEntry":
-        name = binary_reader.read_fixed_size_string(256)
+        name = binary_reader.read_fixed_size_null_terminated_string(256)
         offset = binary_reader.read_u32(endianness)
         compressed_size = binary_reader.read_u32(endianness)
         decompressed_size = binary_reader.read_u32(endianness)
@@ -309,9 +332,15 @@ class NPCEntry(BinRead):
     def binread(
         cls, binary_reader: BinaryReader, args: None, endianness: Endianness
     ) -> "NPCEntry":
-        name = binary_reader.read_fixed_size_string(64)
+        name = binary_reader.read_fixed_size_null_terminated_string(64)
         compressed_size = binary_reader.read_u32(endianness)
-        assert compressed_size == 0
+        assert compressed_size in [
+            0,
+            2,
+            3,
+            6,
+            7,
+        ]  # FIXME: Clearly not a compressed_size
         offset = binary_reader.read_u32(endianness)
         decompressed_size = binary_reader.read_u32(endianness)
         return NPCEntry(name, compressed_size, offset, decompressed_size)
@@ -457,7 +486,7 @@ class PCGEntry(BinRead, BinWrite):
     ) -> "PCGEntry":
         (num_entries,) = args
         offset = binary_reader.read_u32(endianness)
-        name = binary_reader.read_fixed_size_string(0xC)
+        name = binary_reader.read_fixed_size_null_terminated_string(0xC)
         pos = binary_reader.tell()
         binary_reader.seek(align_to(0x80, 0x10 + num_entries * 0x10) + offset)
         data = PCGData.binread(binary_reader, None, endianness)
@@ -522,17 +551,24 @@ class PCG(BinRead, BinWrite):
         )
 
 
-# TODO: Why can't I use BinWrite/BinRead here?
-class DDSPixelFormatFourCC(StrEnum):
-    NONE = "\0\0\0\0"
-    BC1 = "DXT1"
-    BC2 = "DXT3"
+class BytesEnum(bytes, ReprEnum):
+    def __new__(cls, value: bytes) -> "BytesEnum":
+        if not isinstance(value, (bytes,)):
+            raise TypeError("BytesEnum values must be bytes")
+        return bytes.__new__(cls, value)
+
+
+# EnumMeta conflicts with Protocol/ABCMeta, so we can't inherit from BinRead/BinWrite.
+class DDSPixelFormatFourCC(BytesEnum):
+    NONE = b"\0\0\0\0"
+    BC1 = b"DXT1"
+    BC2 = b"DXT3"
 
     @classmethod
     def binread(
         cls, binary_reader: "BinaryReader", args: None, endianness: Endianness
     ) -> "DDSPixelFormatFourCC":
-        return DDSPixelFormatFourCC(binary_reader.read_fixed_size_string(4))
+        return DDSPixelFormatFourCC(binary_reader.read(4))
 
     @classmethod
     def binwrite(
@@ -542,7 +578,8 @@ class DDSPixelFormatFourCC(StrEnum):
         args: None,
         endianness: Endianness,
     ) -> None:
-        binary_writer.write_string(value)
+        assert len(value) == 4
+        binary_writer.write(value)
 
 
 @dataclass
@@ -652,7 +689,7 @@ class DDSHeader(BinWrite, BinRead):
     def binread(
         cls, binary_reader: "BinaryReader", args: None, endianness: Endianness
     ) -> "DDSHeader":
-        id = binary_reader.read_fixed_size_string(4)
+        id = binary_reader.read_fixed_size_null_terminated_string(4)
         assert id == "DDS "
         size = binary_reader.read_u32(endianness)
         assert size == 0x7C
@@ -827,7 +864,7 @@ class TexturesPcEntry4(BinRead, BinWrite):
         flags = binary_reader.read_u32(endianness)
         b = binary_reader.read_u32(endianness)
         name_size = binary_reader.read_u32(endianness)
-        name = binary_reader.read_fixed_size_string(name_size)
+        name = binary_reader.read_fixed_size_null_terminated_string(name_size)
         encoding = binary_reader.read_u32(endianness)
         num_mipmaps = binary_reader.read_u32(endianness)
         e = binary_reader.read_float(endianness)

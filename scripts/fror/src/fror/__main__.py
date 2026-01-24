@@ -2,8 +2,9 @@ import argparse
 import contextlib
 from dataclasses import dataclass
 from io import BytesIO
-import pathlib
-import sys
+from pathlib import Path
+import re
+from string import Template
 import typing
 import abc
 import subprocess
@@ -19,11 +20,25 @@ from libfror.compression import (
 )
 from libfror.binrw import BinaryReader, BinaryWriter, Endianness
 from libfror.types import (
+    DBF_FILE_FORMAT,
+    BININFO_BIN_FILE_FORMAT,
+    FONTS_HDR_FILE_FORMAT,
+    FONTS_RAW_FILE_FORMAT,
+    FONTS_DAT_FILE_FORMAT,
+    GRADIENT_DAT_FILE_FORMAT,
+    NPC_FILE_FORMAT,
+    PCG_FILE_FORMAT,
+    PVS_FILE_FORMAT,
+    SPC_FILE_FORMAT,
+    TEXTURES_PC_FILE_FORMAT,
+    THREE_D_OBJ_DB_PC_FILE_FORMAT,
+    THREE_D_OBJS_PC_FILE_FORMAT,
     DBF,
     NPC,
     PCG,
     DDSHeader,
     DDSPixelFormat,
+    FileFormat,
     PCGData,
     PCGEntry,
     TexturesPc,
@@ -65,7 +80,7 @@ class Subcommand(typing.Protocol[A]):
         args_dict = vars(args).copy()
         del args_dict["subcommand"]
         del args_dict["klass"]
-        cls.execute(cls.Args(**args_dict))
+        return cls.execute(cls.Args(**args_dict))
 
     @classmethod
     @abc.abstractmethod
@@ -77,13 +92,13 @@ class CompressSubcommand(Subcommand):
 
     @dataclass
     class Args:
-        decompressed: pathlib.Path
-        compressed: pathlib.Path
+        decompressed: Path
+        compressed: Path
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("decompressed", type=pathlib.Path)
-        parser.add_argument("compressed", type=pathlib.Path)
+        parser.add_argument("decompressed", type=Path)
+        parser.add_argument("compressed", type=Path)
 
     @classmethod
     def execute(cls, args: Args) -> None:
@@ -99,13 +114,13 @@ class DecompressSubcommand(Subcommand):
 
     @dataclass
     class Args:
-        compressed: pathlib.Path
-        decompressed: pathlib.Path
+        compressed: Path
+        decompressed: Path
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("compressed", type=pathlib.Path)
-        parser.add_argument("decompressed", type=pathlib.Path)
+        parser.add_argument("compressed", type=Path)
+        parser.add_argument("decompressed", type=Path)
 
     @classmethod
     def execute(cls, args: Args) -> None:
@@ -122,13 +137,13 @@ class ExtractDBFSubcommand(Subcommand):
 
     @dataclass
     class Args:
-        dbf: pathlib.Path
-        directory: pathlib.Path
+        dbf: Path
+        directory: Path
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("dbf", type=pathlib.Path)
-        parser.add_argument("directory", type=pathlib.Path)
+        parser.add_argument("dbf", type=Path)
+        parser.add_argument("directory", type=Path)
 
     @classmethod
     def execute(cls, args: Args) -> None:
@@ -151,13 +166,13 @@ class CreateDBFSubcommand(Subcommand):
 
     @dataclass
     class Args:
-        directory: pathlib.Path
-        dbf: pathlib.Path
+        directory: Path
+        dbf: Path
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("directory", type=pathlib.Path)
-        parser.add_argument("dbf", type=pathlib.Path)
+        parser.add_argument("directory", type=Path)
+        parser.add_argument("dbf", type=Path)
 
     @classmethod
     def execute(cls, args: Args) -> None:
@@ -181,13 +196,13 @@ class ExtractNPCSubcommand(Subcommand):
 
     @dataclass
     class Args:
-        npc: pathlib.Path
-        directory: pathlib.Path
+        npc: Path
+        directory: Path
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("npc", type=pathlib.Path)
-        parser.add_argument("directory", type=pathlib.Path)
+        parser.add_argument("npc", type=Path)
+        parser.add_argument("directory", type=Path)
 
     @classmethod
     def execute(cls, args: Args) -> None:
@@ -211,13 +226,13 @@ class CreateNPCSubcommand(Subcommand):
 
     @dataclass
     class Args:
-        directory: pathlib.Path
-        npc: pathlib.Path
+        directory: Path
+        npc: Path
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("directory", type=pathlib.Path)
-        parser.add_argument("npc", type=pathlib.Path)
+        parser.add_argument("directory", type=Path)
+        parser.add_argument("npc", type=Path)
 
     @classmethod
     def execute(cls, args: Args) -> None:
@@ -253,7 +268,7 @@ class PCGEntryManifest(BaseModel):
     j: typing.Annotated[bytes, Len(min_length=84, max_length=84)]
 
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
         ser_json_bytes="hex",
         val_json_bytes="hex",
     )
@@ -300,7 +315,7 @@ class PCGManifest(BaseModel):
     entries: list[PCGEntryManifest]
 
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
 
     @staticmethod
@@ -328,13 +343,13 @@ class ExtractPCGSubcommand(Subcommand):
 
     @dataclass
     class Args:
-        pcg: pathlib.Path
-        directory: pathlib.Path
+        pcg: Path
+        directory: Path
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("pcg", type=pathlib.Path)
-        parser.add_argument("directory", type=pathlib.Path)
+        parser.add_argument("pcg", type=Path)
+        parser.add_argument("directory", type=Path)
 
     @classmethod
     def execute(cls, args: Args) -> None:
@@ -372,13 +387,13 @@ class CreatePCGSubcommand(Subcommand):
 
     @dataclass
     class Args:
-        directory: pathlib.Path
-        pcg: pathlib.Path
+        directory: Path
+        pcg: Path
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("directory", type=pathlib.Path)
-        parser.add_argument("pcg", type=pathlib.Path)
+        parser.add_argument("directory", type=Path)
+        parser.add_argument("pcg", type=Path)
 
     @classmethod
     def execute(cls, args: Args) -> None:
@@ -407,7 +422,7 @@ class TexturesPcEntryManifest(BaseModel):
     data: typing.Annotated[bytes, Len(min_length=0x400, max_length=0x400)]
 
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
         ser_json_bytes="hex",
         val_json_bytes="hex",
     )
@@ -426,7 +441,7 @@ class TexturesPcEntry2Manifest(BaseModel):
     data: typing.Annotated[bytes, Len(min_length=0x40, max_length=0x40)]
 
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
         ser_json_bytes="hex",
         val_json_bytes="hex",
     )
@@ -445,7 +460,7 @@ class TexturesPcEntry3Manifest(BaseModel):
     data: typing.Annotated[bytes, Len(min_length=0x400, max_length=0x400)]
 
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
         ser_json_bytes="hex",
         val_json_bytes="hex",
     )
@@ -471,7 +486,7 @@ class TexturesPcEntry4Manifest(BaseModel):
     j: int
 
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
 
     @staticmethod
@@ -514,7 +529,7 @@ class TexturePcManifest(BaseModel):
     entries4: list[TexturesPcEntry4Manifest]
 
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
 
     @staticmethod
@@ -566,13 +581,13 @@ class ExtractTexturesPcSubcommand(Subcommand):
 
     @dataclass
     class Args:
-        textures_pc: pathlib.Path
-        directory: pathlib.Path
+        textures_pc: Path
+        directory: Path
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("textures_pc", type=pathlib.Path)
-        parser.add_argument("directory", type=pathlib.Path)
+        parser.add_argument("textures_pc", type=Path)
+        parser.add_argument("directory", type=Path)
 
     @classmethod
     def execute(cls, args: Args) -> None:
@@ -612,13 +627,13 @@ class CreateTexturesPcSubcommand(Subcommand):
 
     @dataclass
     class Args:
-        directory: pathlib.Path
-        textures_pc: pathlib.Path
+        directory: Path
+        textures_pc: Path
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("directory", type=pathlib.Path)
-        parser.add_argument("textures_pc", type=pathlib.Path)
+        parser.add_argument("directory", type=Path)
+        parser.add_argument("textures_pc", type=Path)
 
     @classmethod
     def execute(cls, args: Args) -> None:
@@ -651,7 +666,7 @@ class BininfoBinManifest(BaseModel):
     groups: list[list[str]]
 
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
 
     @staticmethod
@@ -671,13 +686,13 @@ class ExtractBininfoBinSubcommand(Subcommand):
 
     @dataclass
     class Args:
-        bininfo_bin: pathlib.Path
-        bininfo_bin_json: pathlib.Path
+        bininfo_bin: Path
+        bininfo_bin_json: Path
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("bininfo_bin", type=pathlib.Path)
-        parser.add_argument("bininfo_bin_json", type=pathlib.Path)
+        parser.add_argument("bininfo_bin", type=Path)
+        parser.add_argument("bininfo_bin_json", type=Path)
 
     @classmethod
     def execute(cls, args: Args) -> None:
@@ -702,13 +717,13 @@ class CreateBininfoBinSubcommand(Subcommand):
 
     @dataclass
     class Args:
-        bininfo_bin_json: pathlib.Path
-        bininfo_bin: pathlib.Path
+        bininfo_bin_json: Path
+        bininfo_bin: Path
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("bininfo_bin_json", type=pathlib.Path)
-        parser.add_argument("bininfo_bin", type=pathlib.Path)
+        parser.add_argument("bininfo_bin_json", type=Path)
+        parser.add_argument("bininfo_bin", type=Path)
 
     @classmethod
     def execute(cls, args: Args) -> None:
@@ -728,95 +743,100 @@ class ImHexValidateSubcommand(Subcommand):
 
     @dataclass
     class Format:
-        glob: str
+        file_format: FileFormat
         pattern: str
-        compressed: bool
 
-    FORMATS: dict[str, Format] = {
-        "dbf": Format("data/**/*.dbf", "dbf.hexpat", False),
-        "bininfo_bin": Format("data/**/bininfo.bin", "bininfo_bin.hexpat", False),
-        "fonts_hdr": Format("data/**/fonts.hdr", "fonts_hdr.hexpat", False),
-        "fonts_raw": Format("data/**/fonts/*.raw", "fonts_raw.hexpat", False),
-        "fonts_dat": Format("data/**/fonts.dat", "fonts_dat.hexpat", False),
-        "gradient_dat": Format("data/**/gradient.dat", "gradient_dat.hexpat", False),
-        "npc": Format("data/**/*.npc", "npc.hexpat", False),
-        "pcg": Format("data/**/*.pcg", "pcg.hexpat", True),
-        "pvs": Format("data/**/*.pvs", "pvs.hexpat", True),
-        "spc": Format("data/**/*.spc", "spc.hexpat", False),
-        "textures_pc": Format("data/**/textures.pc", "textures_pc.hexpat", True),
-        "3dobjdb_pc": Format("data/**/3dobjdb.pc", "three_d_obj_db_pc.hexpat", False),
-        "3dobjs_pc": Format("data/**/3dobjs.pc", "three_d_objs_pc.hexpat", True),
-        # "3dobjsp_pc": Format("data/**/3dobjsp.pc", "three_d_objsp_pc.hexpat", True),
-    }
+        def command(
+            self, imhex: Path, includes: Path, patterns: Path, decompressed_input: Path
+        ) -> list[str | Path]:
+            return [
+                imhex,
+                "--pl",
+                "run",
+                "--includes",
+                includes,
+                "--pattern",
+                patterns / self.pattern,
+                "--input",
+                decompressed_input,
+            ]
+
+    FORMATS: list[Format] = [
+        Format(DBF_FILE_FORMAT, "dbf.hexpat"),
+        Format(BININFO_BIN_FILE_FORMAT, "bininfo_bin.hexpat"),
+        Format(FONTS_HDR_FILE_FORMAT, "fonts_hdr.hexpat"),
+        Format(FONTS_RAW_FILE_FORMAT, "fonts_raw.hexpat"),
+        Format(FONTS_DAT_FILE_FORMAT, "fonts_dat.hexpat"),
+        Format(GRADIENT_DAT_FILE_FORMAT, "gradient_dat.hexpat"),
+        Format(NPC_FILE_FORMAT, "npc.hexpat"),
+        Format(PCG_FILE_FORMAT, "pcg.hexpat"),
+        Format(PVS_FILE_FORMAT, "pvs.hexpat"),
+        Format(SPC_FILE_FORMAT, "spc.hexpat"),
+        Format(TEXTURES_PC_FILE_FORMAT, "textures_pc.hexpat"),
+        Format(THREE_D_OBJ_DB_PC_FILE_FORMAT, "three_d_obj_db_pc.hexpat"),
+        Format(THREE_D_OBJS_PC_FILE_FORMAT, "three_d_objs_pc.hexpat"),
+        # Format(THREE_D_OBJSP_PC_FILE_FORMAT, "three_d_objsp_pc.hexpat"),
+    ]
 
     SEPARATOR: str = ","
 
     @dataclass
     class Args:
-        fror_research: pathlib.Path
-        fror: pathlib.Path
+        fror_research: Path
+        fror: Path
         verbose: bool
-        imhex: pathlib.Path
+        imhex: Path
         formats: str
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("fror_research", type=pathlib.Path)
-        parser.add_argument("fror", type=pathlib.Path)
+        parser.add_argument("fror_research", type=Path)
+        parser.add_argument("fror", type=Path)
         parser.add_argument("--verbose", action=argparse.BooleanOptionalAction)
-        parser.add_argument("--imhex", type=pathlib.Path, default="imhex")
+        parser.add_argument("--imhex", type=Path, default="imhex")
         parser.add_argument(
             "--formats",
             type=str,
-            default=ImHexValidateSubcommand.SEPARATOR.join(
-                ImHexValidateSubcommand.FORMATS.keys()
-            ),
+            default=cls.SEPARATOR.join(map(lambda f: f.file_format.name, cls.FORMATS)),
         )
 
     @classmethod
     def execute(cls, args: Args) -> None:
         includes = args.fror_research / "includes"
         patterns = args.fror_research / "patterns"
-        formats = args.formats.split(ImHexValidateSubcommand.SEPARATOR)
-        for format_name, format in ImHexValidateSubcommand.FORMATS.items():
-            if format_name not in formats:
+        formats = args.formats.split(cls.SEPARATOR)
+        for format in cls.FORMATS:
+            if format.file_format.name not in formats:
                 continue
             if args.verbose:
-                logging.debug(f"Processing format: {format_name}")
-            for input in args.fror.glob(format.glob):
+                logging.debug(f"Processing format: {format.file_format.name}")
+            for input in args.fror.glob(format.file_format.glob):
                 if args.verbose:
                     logging.debug(f"Processing input: {input}")
                 decompressed_input = input
                 tmp_ctx = (
                     tempfile.TemporaryDirectory()
-                    if format.compressed
+                    if format.file_format.compressed
                     else contextlib.nullcontext()
                 )
                 with tmp_ctx as tmp:
-                    if format.compressed:
+                    if format.file_format.compressed:
                         tmp_str = typing.cast(str, tmp)
                         with open(input, "rb") as f:
                             decompressed_binary_reader = get_decompressed_binary_reader(
                                 f
                             )
                             decompressed_data = decompressed_binary_reader.read()
-                            decompressed_input = (
-                                pathlib.Path(tmp_str) / "decompressed.bin"
-                            )
+                            decompressed_input = Path(tmp_str) / "decompressed.bin"
                             decompressed_input.write_bytes(decompressed_data)
+                    command = format.command(
+                        args.imhex, includes, patterns, decompressed_input
+                    )
+                    if args.verbose:
+                        logging.debug(command)
 
                     completed_process = subprocess.run(
-                        [
-                            args.imhex,
-                            "--pl",
-                            "run",
-                            "--includes",
-                            includes,
-                            "--pattern",
-                            patterns / format.pattern,
-                            "--input",
-                            decompressed_input,
-                        ],
+                        command,
                         capture_output=True,
                         text=True,
                     )
@@ -830,7 +850,7 @@ class ImHexValidateSubcommand(Subcommand):
                         if args.verbose:
                             error += f"\nreturncode: {completed_process.returncode}\nstdout: {completed_process.stdout}\nstderr: {completed_process.stderr}"
                         logging.critical(error)
-                        sys.exit(completed_process.returncode)
+                        raise SystemExit(completed_process.returncode)
 
 
 class FileCompareSubcommand(Subcommand):
@@ -838,14 +858,14 @@ class FileCompareSubcommand(Subcommand):
 
     @dataclass
     class Args:
-        old: pathlib.Path
-        new: pathlib.Path
+        old: Path
+        new: Path
         decompress: bool
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("old", type=pathlib.Path)
-        parser.add_argument("new", type=pathlib.Path)
+        parser.add_argument("old", type=Path)
+        parser.add_argument("new", type=Path)
         parser.add_argument("--decompress", action=argparse.BooleanOptionalAction)
 
     @classmethod
@@ -862,7 +882,128 @@ class FileCompareSubcommand(Subcommand):
                 logging.critical(
                     f"old_bytes does not match new_bytes. {old_byte} != {new_byte} at 0x{i:X}."
                 )
-                sys.exit(1)
+                raise SystemExit(1)
+
+
+class FRORValidateSubcommand(Subcommand):
+    NAME = "test"
+
+    @dataclass
+    class Format:
+        file_format: FileFormat
+        extract_subcommand: typing.Type[Subcommand]
+        create_subcommand: typing.Type[Subcommand]
+        file_compare: bool
+
+        def commands(self, input_path: Path, tmp_path: Path) -> list[list[str | Path]]:
+            underscored_input_path = re.sub(r"[^a-zA-Z0-9_-]", "_", str(input_path))
+            intermediate_path = underscored_input_path + ".intermediate"
+            intermediate2_path = underscored_input_path + ".intermediate2"
+            extract_command: list[str | Path] = [
+                "fror",
+                self.extract_subcommand.NAME,
+                input_path,
+                tmp_path / intermediate_path,
+            ]
+            create_command: list[str | Path] = [
+                "fror",
+                self.create_subcommand.NAME,
+                tmp_path / intermediate_path,
+                tmp_path / underscored_input_path,
+            ]
+            check_command: list[str | Path] = []
+            if self.file_compare:
+                check_command = [
+                    "fror",
+                    "fcmp",
+                    input_path,
+                    tmp_path / underscored_input_path,
+                ]
+                if self.file_format.compressed:
+                    check_command += ["--decompress"]
+            else:
+                check_command = [
+                    "fror",
+                    self.extract_subcommand.NAME,
+                    tmp_path / underscored_input_path,
+                    tmp_path / intermediate2_path,
+                ]
+            commands = [extract_command, create_command, check_command]
+            return commands
+
+    # Fake file format to test the compress/decompress subcommands
+    COMPRESSED_FILE_FORMAT = FileFormat("compressed", PVS_FILE_FORMAT.glob, True)
+
+    FORMATS: list[Format] = [
+        Format(COMPRESSED_FILE_FORMAT, DecompressSubcommand, CompressSubcommand, True),
+        Format(DBF_FILE_FORMAT, ExtractDBFSubcommand, CreateDBFSubcommand, False),
+        Format(
+            BININFO_BIN_FILE_FORMAT,
+            ExtractBininfoBinSubcommand,
+            CreateBininfoBinSubcommand,
+            True,
+        ),
+        Format(NPC_FILE_FORMAT, ExtractNPCSubcommand, CreateNPCSubcommand, False),
+        Format(PCG_FILE_FORMAT, ExtractPCGSubcommand, CreatePCGSubcommand, True),
+        Format(
+            TEXTURES_PC_FILE_FORMAT,
+            ExtractTexturesPcSubcommand,
+            CreateTexturesPcSubcommand,
+            True,
+        ),
+    ]
+
+    SEPARATOR: str = ","
+
+    @dataclass
+    class Args:
+        fror: Path
+        verbose: bool
+        formats: str
+
+    @classmethod
+    def setup(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("fror", type=Path)
+        parser.add_argument("--verbose", action=argparse.BooleanOptionalAction)
+        parser.add_argument(
+            "--formats",
+            type=str,
+            default=cls.SEPARATOR.join(map(lambda s: s.file_format.name, cls.FORMATS)),
+        )
+
+    @classmethod
+    def execute(cls, args: Args) -> None:
+        formats = args.formats.split(cls.SEPARATOR)
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            for format in cls.FORMATS:
+                if format.file_format.name not in formats:
+                    continue
+                if args.verbose:
+                    logging.debug(f"Processing format: {format.file_format.name}")
+                for input in args.fror.glob(format.file_format.glob):
+                    if args.verbose:
+                        logging.debug(f"Processing input: {input}")
+                    for command in format.commands(input, tmp_path):
+                        if args.verbose:
+                            logging.debug(command)
+
+                        completed_process = subprocess.run(
+                            command,
+                            capture_output=True,
+                            text=True,
+                        )
+
+                        if (
+                            completed_process.returncode != 0
+                            or completed_process.stdout
+                            or completed_process.stderr
+                        ):
+                            error = f"!!! ERROR: Failed to validate {input}"
+                            if args.verbose:
+                                error += f"\nreturncode: {completed_process.returncode}\nstdout: {completed_process.stdout}\nstderr: {completed_process.stderr}"
+                            logging.critical(error)
+                            raise SystemExit(completed_process.returncode)
 
 
 def main() -> None:
@@ -883,6 +1024,7 @@ def main() -> None:
     CreateBininfoBinSubcommand.pre_setup(subparsers)
     ImHexValidateSubcommand.pre_setup(subparsers)
     FileCompareSubcommand.pre_setup(subparsers)
+    FRORValidateSubcommand.pre_setup(subparsers)
 
     args = parser.parse_args()
     args.klass.pre_execute(args)

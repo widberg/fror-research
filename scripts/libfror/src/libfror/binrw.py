@@ -54,9 +54,11 @@ class BinaryReader:
             value.append(c)
         return value.decode(encoding)
 
-    def read_fixed_size_string(self, size: int, encoding: str = "ascii") -> str:
+    def read_fixed_size_null_terminated_string(
+        self, size: int, encoding: str = "ascii"
+    ) -> str:
         value: bytes = self.read_struct(str(size) + "s", Endianness.LITTLE)[0]
-        value = value.rstrip(b"\0")
+        value = value.split(b"\0", 1)[0]
         return value.decode(encoding)
 
     def read_s32(self, endianness: Endianness) -> int:
