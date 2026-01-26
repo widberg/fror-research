@@ -9,7 +9,7 @@ from pathlib import Path
 from .compression import get_decompressed_binary_reader_from_path
 
 
-@dataclass(frozen=True)
+@dataclass
 class FileFormat:
     name: str
     glob: str
@@ -324,26 +324,19 @@ class DBF(BinRead, BinWrite):
 @dataclass
 class NPCEntry(BinRead):
     name: str
-    compressed_size: int
+    flags: int
     offset: int
-    decompressed_size: int
+    size: int
 
     @classmethod
     def binread(
         cls, binary_reader: BinaryReader, args: None, endianness: Endianness
     ) -> "NPCEntry":
         name = binary_reader.read_fixed_size_null_terminated_string(64)
-        compressed_size = binary_reader.read_u32(endianness)
-        assert compressed_size in [
-            0,
-            2,
-            3,
-            6,
-            7,
-        ]  # FIXME: Clearly not a compressed_size
+        flags = binary_reader.read_u32(endianness)
         offset = binary_reader.read_u32(endianness)
-        decompressed_size = binary_reader.read_u32(endianness)
-        return NPCEntry(name, compressed_size, offset, decompressed_size)
+        size = binary_reader.read_u32(endianness)
+        return NPCEntry(name, flags, offset, size)
 
     @classmethod
     def binwrite(
@@ -354,14 +347,20 @@ class NPCEntry(BinRead):
         endianness: Endianness,
     ) -> None:
         binary_writer.write_fixed_size_string(value.name, 64)
-        binary_writer.write_u32(value.compressed_size, endianness)
+        binary_writer.write_u32(value.flags, endianness)
         binary_writer.write_u32(value.offset, endianness)
-        binary_writer.write_u32(value.decompressed_size, endianness)
+        binary_writer.write_u32(value.size, endianness)
+
+
+@dataclass
+class NPCFile:
+    flags: int
+    data: bytes
 
 
 @dataclass
 class NPC(BinRead, BinWrite):
-    files: dict[str, bytes]
+    files: dict[str, NPCFile]
 
     @classmethod
     def binread(
@@ -376,14 +375,14 @@ class NPC(BinRead, BinWrite):
         data_offset = 4 + num_entries * (64 + 4 * 3)
         assert binary_reader.tell() == data_offset
 
-        files: dict[str, bytes] = {}
+        files: dict[str, NPCFile] = {}
 
         for entry in entries:
             binary_reader.seek(data_offset + entry.offset)
-            decompressed_data = binary_reader.read(entry.decompressed_size)
+            data = binary_reader.read(entry.size)
 
             assert entry.name not in files
-            files[entry.name] = decompressed_data
+            files[entry.name] = NPCFile(entry.flags, data)
 
         return NPC(files)
 
@@ -402,14 +401,13 @@ class NPC(BinRead, BinWrite):
         binary_writer.seek(data_offset)
 
         entries = []
-        for name, data in value.files.items():
+        for name, file in value.files.items():
             offset = binary_writer.tell() - data_offset
-            compressed_size = 0
-            decompressed_size = len(data)
+            size = len(file.data)
 
-            binary_writer.write(data)
+            binary_writer.write(file.data)
 
-            entries.append(NPCEntry(name, compressed_size, offset, decompressed_size))
+            entries.append(NPCEntry(name, file.flags, offset, size))
 
         binary_writer.seek(entries_pos)
         binary_writer.write_list(entries, NPCEntry.binwrite, None, endianness)

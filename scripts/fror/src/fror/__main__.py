@@ -39,6 +39,7 @@ from libfror.types import (
     DDSHeader,
     DDSPixelFormat,
     FileFormat,
+    NPCFile,
     PCGData,
     PCGEntry,
     TexturesPc,
@@ -191,6 +192,45 @@ class CreateDBFSubcommand(Subcommand):
             DBF.binwrite(binary_writer, dbf, None, Endianness.LITTLE)
 
 
+class NPCFileManifest(BaseModel):
+    flags: int
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    @staticmethod
+    def from_npc_file(npc_file: NPCFile) -> "NPCFileManifest":
+        return NPCFileManifest(
+            flags=npc_file.flags,
+        )
+
+    def to_npc_file(self) -> NPCFile:
+        return NPCFile(
+            self.flags,
+            b"",
+        )
+
+
+class NPCManifest(BaseModel):
+    files: dict[str, NPCFileManifest]
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+
+    @staticmethod
+    def from_npc(npc: NPC) -> "NPCManifest":
+        return NPCManifest(
+            files={k: NPCFileManifest.from_npc_file(v) for k, v in npc.files.items()},
+        )
+
+    def to_npc(self) -> NPC:
+        return NPC(
+            {k: v.to_npc_file() for k, v in self.files.items()},
+        )
+
+
 class ExtractNPCSubcommand(Subcommand):
     NAME = "xnpc"
 
@@ -212,13 +252,17 @@ class ExtractNPCSubcommand(Subcommand):
             binary_reader = BinaryReader(npc)
             parsed_npc = NPC.binread(binary_reader, None, Endianness.LITTLE)
 
-            for name, decompressed_data in parsed_npc.files.items():
+            npc_manifest = NPCManifest.from_npc(parsed_npc)
+
+            npc_manifest_json = npc_manifest.model_dump_json(indent=2, round_trip=True)
+            (args.directory / "manifest.json").write_text(npc_manifest_json)
+
+            for name, file in parsed_npc.files.items():
                 file_name = name + ".wav"
                 file_path = args.directory / file_name
                 file_path_directory = file_path.parent
                 file_path_directory.mkdir(parents=True, exist_ok=True)
-                with open(file_path, "wb") as f:
-                    f.write(decompressed_data)
+                file_path.write_bytes(file.data)
 
 
 class CreateNPCSubcommand(Subcommand):
@@ -236,20 +280,15 @@ class CreateNPCSubcommand(Subcommand):
 
     @classmethod
     def execute(cls, args: Args) -> None:
-        # TODO: This doesn't order the files like in the original
-        files = dict(
-            sorted(
-                [
-                    (
-                        str(path.relative_to(args.directory).with_suffix("")),
-                        path.read_bytes(),
-                    )
-                    for path in args.directory.rglob("*")
-                    if not path.is_dir()
-                ]
-            )
-        )
-        npc = NPC(files)
+        npc_manifest_json = (args.directory / "manifest.json").read_text()
+        npc_manifest = NPCManifest.model_validate_json(npc_manifest_json)
+        npc = npc_manifest.to_npc()
+
+        for name, file in npc.files.items():
+            file_name = name + ".wav"
+            file_path = args.directory / file_name
+            file.data = file_path.read_bytes()
+
         with open(args.npc, "wb") as npc_file:
             binary_writer = BinaryWriter(npc_file)
             NPC.binwrite(binary_writer, npc, None, Endianness.LITTLE)
