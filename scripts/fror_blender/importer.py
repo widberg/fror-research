@@ -44,14 +44,14 @@ class ImportFROR(Operator, ImportHelper):  # type: ignore
         endianness = Endianness.LITTLE
         three_d_obj = ThreeDObjPc.from_directory_path(directory_path, endianness)
 
-        for i in range(len(three_d_obj.three_d_objsp_pc)):
+        for i in range(len(three_d_obj.three_d_objsp_pc.vertex_buffers)):
             mesh = bpy.data.meshes.new(f"myBeautifulMesh{i}")  # type: ignore
             obj = bpy.data.objects.new(mesh.name, mesh)  # type: ignore
             col = bpy.data.collections["Collection"]  # type: ignore
             col.objects.link(obj)  # type: ignore
             bpy.context.view_layer.objects.active = obj  # type: ignore
 
-            vertex_buffer = three_d_obj.three_d_objsp_pc[i]
+            vertex_buffer = three_d_obj.three_d_objsp_pc.vertex_buffers[i]
             triangle_strip_buffer = three_d_obj.three_d_objs_pc.triangle_strip_buffers[
                 i
             ]

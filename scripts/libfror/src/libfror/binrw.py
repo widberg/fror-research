@@ -1,8 +1,39 @@
+from io import BytesIO
+from pathlib import Path
 import struct
 import os
 from enum import StrEnum
 import typing
 import abc
+import zlib
+
+
+def decompress(binary_reader: BinaryReader) -> bytes:
+    decompressed_size = binary_reader.read_u32(Endianness.LITTLE)
+    compressed_data = binary_reader.read()
+    decompressed_data = zlib.decompress(compressed_data)
+    assert len(decompressed_data) == decompressed_size
+    return decompressed_data
+
+
+def get_decompressed_binary_reader(f: typing.BinaryIO) -> BinaryReader:
+    binary_reader = BinaryReader(f)
+    decompressed_data = decompress(binary_reader)
+    return BinaryReader(BytesIO(decompressed_data))
+
+
+def get_decompressed_binary_reader_from_path(p: Path) -> BinaryReader:
+    with open(p, "rb") as f:
+        binary_reader = BinaryReader(f)
+        decompressed_data = decompress(binary_reader)
+        return BinaryReader(BytesIO(decompressed_data))
+
+
+def compress_and_write(data: bytes, f: typing.BinaryIO) -> None:
+    compressed_data = zlib.compress(data, level=9)
+    binary_writer = BinaryWriter(f)
+    binary_writer.write_u32(len(data), Endianness.LITTLE)
+    binary_writer.write(compressed_data)
 
 
 class Endianness(StrEnum):
@@ -22,6 +53,22 @@ class BinRead(typing.Protocol[A]):
     def binread(
         cls, binary_reader: "BinaryReader", args: A, endianness: Endianness
     ) -> typing.Self: ...
+
+    @classmethod
+    def binread_from_path(
+        cls, path: Path, args: A, endianness: Endianness
+    ) -> typing.Self:
+        with open(path, "rb") as f:
+            binary_reader = BinaryReader(f)
+            return cls.binread(binary_reader, args, endianness)
+
+    @classmethod
+    def binread_from_path_decompress(
+        cls, path: Path, args: A, endianness: Endianness
+    ) -> typing.Self:
+        with open(path, "rb") as f:
+            decompressed_binary_reader = get_decompressed_binary_reader(f)
+            return cls.binread(decompressed_binary_reader, args, endianness)
 
 
 class BinaryReader:
@@ -144,6 +191,32 @@ class BinWrite(typing.Protocol[A]):
         args: A,
         endianness: Endianness,
     ) -> None: ...
+
+    @classmethod
+    def binwrite_to_path(
+        cls,
+        path: Path,
+        value: typing.Self,
+        args: A,
+        endianness: Endianness,
+    ) -> None:
+        with open(path, "wb") as f:
+            binary_writer = BinaryWriter(f)
+            cls.binwrite(binary_writer, value, args, endianness)
+
+    @classmethod
+    def binwrite_to_path_compress(
+        cls,
+        path: Path,
+        value: typing.Self,
+        args: A,
+        endianness: Endianness,
+    ) -> None:
+        bytes_io = BytesIO()
+        binary_writer = BinaryWriter(bytes_io)
+        cls.binwrite(binary_writer, value, args, endianness)
+        with open(path, "wb") as f:
+            compress_and_write(bytes_io.getvalue(), f)
 
 
 class BinaryWriter:

@@ -13,12 +13,14 @@ import tempfile
 from annotated_types import Len
 from pydantic import BaseModel, ConfigDict
 
-from libfror.compression import (
+from libfror.binrw import (
+    BinaryReader,
+    BinaryWriter,
+    Endianness,
     compress_and_write,
     get_decompressed_binary_reader,
     get_decompressed_binary_reader_from_path,
 )
-from libfror.binrw import BinaryReader, BinaryWriter, Endianness
 from libfror.types import (
     DBF_FILE_FORMAT,
     BININFO_BIN_FILE_FORMAT,
@@ -150,16 +152,13 @@ class ExtractDBFSubcommand(Subcommand):
     def execute(cls, args: Args) -> None:
         args.directory.mkdir(parents=True, exist_ok=True)
 
-        with open(args.dbf, "rb") as dbf:
-            binary_reader = BinaryReader(dbf)
-            parsed_dbf = DBF.binread(binary_reader, None, Endianness.LITTLE)
+        dbf = DBF.binread_from_path(args.dbf, None, Endianness.LITTLE)
 
-            for name, decompressed_data in parsed_dbf.files.items():
-                file_path = args.directory / name
-                file_path_directory = file_path.parent
-                file_path_directory.mkdir(parents=True, exist_ok=True)
-                with open(file_path, "wb") as f:
-                    f.write(decompressed_data)
+        for name, decompressed_data in dbf.files.items():
+            file_path = args.directory / name
+            file_path_directory = file_path.parent
+            file_path_directory.mkdir(parents=True, exist_ok=True)
+            file_path.write_bytes(decompressed_data)
 
 
 class CreateDBFSubcommand(Subcommand):
@@ -187,9 +186,7 @@ class CreateDBFSubcommand(Subcommand):
             )
         )
         dbf = DBF(files)
-        with open(args.dbf, "wb") as dbf_file:
-            binary_writer = BinaryWriter(dbf_file)
-            DBF.binwrite(binary_writer, dbf, None, Endianness.LITTLE)
+        DBF.binwrite_to_path(args.dbf, dbf, None, Endianness.LITTLE)
 
 
 class NPCFileManifest(BaseModel):
@@ -248,21 +245,19 @@ class ExtractNPCSubcommand(Subcommand):
     def execute(cls, args: Args) -> None:
         args.directory.mkdir(parents=True, exist_ok=True)
 
-        with open(args.npc, "rb") as npc:
-            binary_reader = BinaryReader(npc)
-            parsed_npc = NPC.binread(binary_reader, None, Endianness.LITTLE)
+        npc = NPC.binread_from_path(args.npc, None, Endianness.LITTLE)
 
-            npc_manifest = NPCManifest.from_npc(parsed_npc)
+        npc_manifest = NPCManifest.from_npc(npc)
 
-            npc_manifest_json = npc_manifest.model_dump_json(indent=2, round_trip=True)
-            (args.directory / "manifest.json").write_text(npc_manifest_json)
+        npc_manifest_json = npc_manifest.model_dump_json(indent=2, round_trip=True)
+        (args.directory / "manifest.json").write_text(npc_manifest_json)
 
-            for name, file in parsed_npc.files.items():
-                file_name = name + ".wav"
-                file_path = args.directory / file_name
-                file_path_directory = file_path.parent
-                file_path_directory.mkdir(parents=True, exist_ok=True)
-                file_path.write_bytes(file.data)
+        for name, file in npc.files.items():
+            file_name = name + ".wav"
+            file_path = args.directory / file_name
+            file_path_directory = file_path.parent
+            file_path_directory.mkdir(parents=True, exist_ok=True)
+            file_path.write_bytes(file.data)
 
 
 class CreateNPCSubcommand(Subcommand):
@@ -289,9 +284,7 @@ class CreateNPCSubcommand(Subcommand):
             file_path = args.directory / file_name
             file.data = file_path.read_bytes()
 
-        with open(args.npc, "wb") as npc_file:
-            binary_writer = BinaryWriter(npc_file)
-            NPC.binwrite(binary_writer, npc, None, Endianness.LITTLE)
+        NPC.binwrite_to_path(args.npc, npc, None, Endianness.LITTLE)
 
 
 class PCGEntryManifest(BaseModel):
@@ -394,31 +387,25 @@ class ExtractPCGSubcommand(Subcommand):
     def execute(cls, args: Args) -> None:
         args.directory.mkdir(parents=True, exist_ok=True)
 
-        with open(args.pcg, "rb") as pcg:
-            decompressed_binary_reader = get_decompressed_binary_reader(pcg)
-            parsed_pcg = PCG.binread(
-                decompressed_binary_reader, None, Endianness.LITTLE
-            )
+        pcg = PCG.binread_from_path_decompress(args.pcg, None, Endianness.LITTLE)
 
-            pcg_manifest = PCGManifest.from_pcg(parsed_pcg)
-            pcg_manifest_json = pcg_manifest.model_dump_json(indent=2, round_trip=True)
+        pcg_manifest = PCGManifest.from_pcg(pcg)
+        pcg_manifest_json = pcg_manifest.model_dump_json(indent=2, round_trip=True)
 
-            (args.directory / "manifest.json").write_text(pcg_manifest_json)
+        (args.directory / "manifest.json").write_text(pcg_manifest_json)
 
-            for entry in parsed_pcg.entries:
-                path = args.directory / (entry.name + ".dds")
-                with open(path, "wb") as dds:
-                    binary_writer = BinaryWriter(dds)
-                    dds_header = DDSHeader(
-                        entry.data.width,
-                        entry.data.height,
-                        1,
-                        DDSPixelFormat.from_bc2(),
-                    )
-                    DDSHeader.binwrite(
-                        binary_writer, dds_header, None, Endianness.LITTLE
-                    )
-                    binary_writer.write(entry.data.data)
+        for entry in pcg.entries:
+            path = args.directory / (entry.name + ".dds")
+            with open(path, "wb") as dds:
+                binary_writer = BinaryWriter(dds)
+                dds_header = DDSHeader(
+                    entry.data.width,
+                    entry.data.height,
+                    1,
+                    DDSPixelFormat.from_bc2(),
+                )
+                DDSHeader.binwrite(binary_writer, dds_header, None, Endianness.LITTLE)
+                binary_writer.write(entry.data.data)
 
 
 class CreatePCGSubcommand(Subcommand):
@@ -450,11 +437,7 @@ class CreatePCGSubcommand(Subcommand):
                 entry.data.height = dds_header.height
                 entry.data.data = data
 
-        bytes_io = BytesIO()
-        binary_writer = BinaryWriter(bytes_io)
-        PCG.binwrite(binary_writer, pcg, None, Endianness.LITTLE)
-        with open(args.pcg, "wb") as pcg_file:
-            compress_and_write(bytes_io.getvalue(), pcg_file)
+        PCG.binwrite_to_path_compress(args.pcg, pcg, None, Endianness.LITTLE)
 
 
 class TexturesPcEntryManifest(BaseModel):
@@ -632,33 +615,29 @@ class ExtractTexturesPcSubcommand(Subcommand):
     def execute(cls, args: Args) -> None:
         args.directory.mkdir(parents=True, exist_ok=True)
 
-        with open(args.textures_pc, "rb") as textures_pc:
-            decompressed_binary_reader = get_decompressed_binary_reader(textures_pc)
-            parsed_tpc = TexturesPc.binread(
-                decompressed_binary_reader, None, Endianness.LITTLE
-            )
+        tpc = TexturesPc.binread_from_path_decompress(
+            args.textures_pc, None, Endianness.LITTLE
+        )
 
-            textures_pc_manifest = TexturePcManifest.from_textures_pc(parsed_tpc)
+        textures_pc_manifest = TexturePcManifest.from_textures_pc(tpc)
 
-            textures_pc_manifest_json = textures_pc_manifest.model_dump_json(
-                indent=2, round_trip=True
-            )
-            (args.directory / "manifest.json").write_text(textures_pc_manifest_json)
+        textures_pc_manifest_json = textures_pc_manifest.model_dump_json(
+            indent=2, round_trip=True
+        )
+        (args.directory / "manifest.json").write_text(textures_pc_manifest_json)
 
-            for i, textures_pc_entry4 in enumerate(parsed_tpc.entries4):
-                path = args.directory / (f"{i}.{textures_pc_entry4.name}.dds")
-                with open(path, "wb") as dds:
-                    binary_writer = BinaryWriter(dds)
-                    dds_header = DDSHeader(
-                        textures_pc_entry4.width,
-                        textures_pc_entry4.height,
-                        textures_pc_entry4.num_mipmaps + 1,
-                        textures_pc_entry4.get_dds_pixel_format(),
-                    )
-                    DDSHeader.binwrite(
-                        binary_writer, dds_header, None, Endianness.LITTLE
-                    )
-                    binary_writer.write(textures_pc_entry4.data)
+        for i, textures_pc_entry4 in enumerate(tpc.entries4):
+            path = args.directory / (f"{i}.{textures_pc_entry4.name}.dds")
+            with open(path, "wb") as dds:
+                binary_writer = BinaryWriter(dds)
+                dds_header = DDSHeader(
+                    textures_pc_entry4.width,
+                    textures_pc_entry4.height,
+                    textures_pc_entry4.num_mipmaps + 1,
+                    textures_pc_entry4.get_dds_pixel_format(),
+                )
+                DDSHeader.binwrite(binary_writer, dds_header, None, Endianness.LITTLE)
+                binary_writer.write(textures_pc_entry4.data)
 
 
 class CreateTexturesPcSubcommand(Subcommand):
@@ -694,11 +673,9 @@ class CreateTexturesPcSubcommand(Subcommand):
                 textures_pc_entry4.height = dds_header.height
                 textures_pc_entry4.data = data
 
-        bytes_io = BytesIO()
-        binary_writer = BinaryWriter(bytes_io)
-        TexturesPc.binwrite(binary_writer, textures_pc, None, Endianness.LITTLE)
-        with open(args.textures_pc, "wb") as textures_pc_file:
-            compress_and_write(bytes_io.getvalue(), textures_pc_file)
+        TexturesPc.binwrite_to_path_compress(
+            args.textures_pc, textures_pc, None, Endianness.LITTLE
+        )
 
 
 class BininfoBinManifest(BaseModel):
@@ -735,20 +712,16 @@ class ExtractBininfoBinSubcommand(Subcommand):
 
     @classmethod
     def execute(cls, args: Args) -> None:
-        with open(args.bininfo_bin, "rb") as bininfo_bin:
-            binary_reader = BinaryReader(bininfo_bin)
-            parsed_bininfo_bin = BininfoBin.binread(
-                binary_reader, None, Endianness.LITTLE
-            )
+        bininfo_bin = BininfoBin.binread_from_path(
+            args.bininfo_bin, None, Endianness.LITTLE
+        )
 
-            bininfo_bin_manifest = BininfoBinManifest.from_bininfo_bin(
-                parsed_bininfo_bin
-            )
-            pcg_manifest_json = bininfo_bin_manifest.model_dump_json(
-                indent=2, round_trip=True
-            )
+        bininfo_bin_manifest = BininfoBinManifest.from_bininfo_bin(bininfo_bin)
+        pcg_manifest_json = bininfo_bin_manifest.model_dump_json(
+            indent=2, round_trip=True
+        )
 
-            args.bininfo_bin_json.write_text(pcg_manifest_json)
+        args.bininfo_bin_json.write_text(pcg_manifest_json)
 
 
 class CreateBininfoBinSubcommand(Subcommand):
@@ -772,9 +745,9 @@ class CreateBininfoBinSubcommand(Subcommand):
         )
         bininfo_bin = bininfo_bin_manifest.to_bininfo_bin()
 
-        with open(args.bininfo_bin, "wb") as bininfo_bin_file:
-            binary_writer = BinaryWriter(bininfo_bin_file)
-            BininfoBin.binwrite(binary_writer, bininfo_bin, None, Endianness.LITTLE)
+        BininfoBin.binwrite_to_path(
+            args.bininfo_bin, bininfo_bin, None, Endianness.LITTLE
+        )
 
 
 class ImHexValidateSubcommand(Subcommand):
@@ -861,13 +834,11 @@ class ImHexValidateSubcommand(Subcommand):
                 with tmp_ctx as tmp:
                     if format.file_format.compressed:
                         tmp_str = typing.cast(str, tmp)
-                        with open(input, "rb") as f:
-                            decompressed_binary_reader = get_decompressed_binary_reader(
-                                f
-                            )
-                            decompressed_data = decompressed_binary_reader.read()
-                            decompressed_input = Path(tmp_str) / "decompressed.bin"
-                            decompressed_input.write_bytes(decompressed_data)
+                        decompressed_data = get_decompressed_binary_reader_from_path(
+                            input
+                        ).read()
+                        decompressed_input = Path(tmp_str) / "decompressed.bin"
+                        decompressed_input.write_bytes(decompressed_data)
                     command = format.command(
                         args.imhex, includes, patterns, decompressed_input
                     )
