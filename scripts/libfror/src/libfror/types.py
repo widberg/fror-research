@@ -256,9 +256,10 @@ def read_u8_unorm_float(
 def read_packed_normal(
     binary_reader: BinaryReader, args: None, endianness: Endianness
 ) -> tuple[float, float, float]:
-    x, y, z, w = BinaryReader.read_tuple_4(
+    x, y, z = BinaryReader.read_tuple_3(
         binary_reader, read_s8_snorm_float, None, endianness
     )
+    w = binary_reader.read_u8(endianness)
     return (x, y, z)
 
 
@@ -281,6 +282,9 @@ class VertexColors:
 
 
 VertexNormalsOrColors: typing.TypeAlias = VertexNormals | VertexColors
+VERTEX_NORMALS_OR_COLORS_MASK = 0x6000
+VERTEX_NORMALS_MODE = 0x2000
+VERTEX_COLORS_MODE = 0x4000
 
 
 @dataclass
@@ -308,8 +312,8 @@ class VertexBuffer(BinRead):
             None,
             endianness,
         )
-        normals_or_colors_mode = flags & 0x6000
-        if normals_or_colors_mode == 0x2000:
+        normals_or_colors_mode = flags & VERTEX_NORMALS_OR_COLORS_MASK
+        if normals_or_colors_mode == VERTEX_NORMALS_MODE:
             normals = binary_reader.read_list(
                 num_vertices,
                 read_packed_normal,
@@ -318,7 +322,7 @@ class VertexBuffer(BinRead):
             )
             normals_or_colors: VertexNormalsOrColors = VertexNormals(normals)
         else:
-            assert normals_or_colors_mode == 0x4000
+            assert normals_or_colors_mode == VERTEX_COLORS_MODE
             colors = binary_reader.read_list(
                 num_vertices,
                 read_packed_color,
