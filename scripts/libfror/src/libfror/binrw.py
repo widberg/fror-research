@@ -158,6 +158,19 @@ class BinaryReader:
             read_element(self, args, endianness),
         )
 
+    def read_tuple_4(
+        self,
+        read_element: typing.Callable[["BinaryReader", A, Endianness], T],
+        args: A,
+        endianness: Endianness,
+    ) -> tuple[T, T, T, T]:
+        return (
+            read_element(self, args, endianness),
+            read_element(self, args, endianness),
+            read_element(self, args, endianness),
+            read_element(self, args, endianness),
+        )
+
 
 class BinWrite(typing.Protocol[A]):
     @classmethod

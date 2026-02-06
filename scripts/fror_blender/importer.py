@@ -6,7 +6,7 @@ from bpy.types import Operator
 from bpy_extras.io_utils import ImportHelper
 
 from .modules.libfror.binrw import Endianness
-from .modules.libfror.types import TexturesPc, ThreeDObjPc
+from .modules.libfror.types import TexturesPc, ThreeDObjPc, VertexColors, VertexNormals
 
 
 def _load_packed_images(textures_pc: TexturesPc):
@@ -28,13 +28,13 @@ def _load_packed_images(textures_pc: TexturesPc):
     return packed_images
 
 
-class ImportFROR(Operator, ImportHelper):  # type: ignore
+class ImportFROR(Operator, ImportHelper):
     bl_idname = "fror_blender.import_fror"
     bl_label = "Import Ford Racing Off Road"
     bl_description = "Load a Ford Racing Off Road 3dobj"
 
     def execute(self, context: bpy.types.Context) -> set[str]:
-        directory_path = Path(self.filepath)  # type: ignore
+        directory_path = Path(self.filepath)
         endianness = Endianness.LITTLE
         three_d_obj_pc = ThreeDObjPc.from_directory_path(directory_path, endianness)
         three_d_objs_pc = three_d_obj_pc.three_d_objs_pc
@@ -44,11 +44,11 @@ class ImportFROR(Operator, ImportHelper):  # type: ignore
         packed_images = _load_packed_images(textures_pc)
 
         for i in range(len(three_d_objsp_pc.vertex_buffers)):
-            mesh = bpy.data.meshes.new(f"myBeautifulMesh{i}")  # type: ignore
-            obj = bpy.data.objects.new(mesh.name, mesh)  # type: ignore
-            col = bpy.data.collections["Collection"]  # type: ignore
-            col.objects.link(obj)  # type: ignore
-            bpy.context.view_layer.objects.active = obj  # type: ignore
+            mesh = bpy.data.meshes.new(f"myBeautifulMesh{i}")
+            obj = bpy.data.objects.new(mesh.name, mesh)
+            col = bpy.data.collections["Collection"]
+            col.objects.link(obj)
+            bpy.context.view_layer.objects.active = obj
 
             vertex_buffer = three_d_objsp_pc.vertex_buffers[i]
             triangle_strip_buffer = three_d_objs_pc.triangle_strip_buffers[i]
@@ -59,6 +59,9 @@ class ImportFROR(Operator, ImportHelper):  # type: ignore
             faces = triangle_strip_buffer.to_triangles_ccw()
 
             mesh.from_pydata(vertices, edges, faces)
+
+            mesh.validate(clean_customdata=False)
+            mesh.update()
 
             uvs = vertex_buffer.uvs_v_up()
             if uvs is not None:
@@ -93,12 +96,22 @@ class ImportFROR(Operator, ImportHelper):  # type: ignore
 
                 mesh.materials.append(material)
 
-            mesh.validate(clean_customdata=False)
-            mesh.update()
-
-            normals = vertex_buffer.normals_z_up()
-            assert len(normals) == len(vertices)
-            mesh.normals_split_custom_set_from_vertices(normals)
+            match vertex_buffer.normals_or_colors_z_up():
+                case VertexNormals(normals):
+                    assert len(normals) == len(vertices)
+                    for polygon in mesh.polygons:
+                        polygon.use_smooth = True
+                    mesh.normals_split_custom_set(
+                        [normals[loop.vertex_index] for loop in mesh.loops]
+                    )
+                case VertexColors(colors):
+                    color_layer = mesh.color_attributes.new(
+                        name="Color", type="FLOAT_COLOR", domain="CORNER"
+                    )
+                    for polygon in mesh.polygons:
+                        for loop_index in polygon.loop_indices:
+                            vertex_index = mesh.loops[loop_index].vertex_index
+                            color_layer.data[loop_index].color = colors[vertex_index]
 
             if uvs is not None:
                 mesh.calc_tangents()
@@ -113,8 +126,8 @@ def menu_func_import_fror(self, context: bpy.types.Context) -> None:
 
 
 def register() -> None:
-    bpy.types.TOPBAR_MT_file_import.append(menu_func_import_fror)  # type: ignore
+    bpy.types.TOPBAR_MT_file_import.append(menu_func_import_fror)
 
 
 def unregister() -> None:
-    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import_fror)  # type: ignore
+    bpy.types.TOPBAR_MT_file_import.remove(menu_func_import_fror)

@@ -246,27 +246,60 @@ def read_s8_snorm_float(
     return float(value) / 127.0
 
 
+def read_u8_unorm_float(
+    binary_reader: BinaryReader, args: None, endianness: Endianness
+):
+    value = binary_reader.read_u8(endianness)
+    return float(value) / 255.0
+
+
 def read_packed_normal(
     binary_reader: BinaryReader, args: None, endianness: Endianness
 ) -> tuple[float, float, float]:
-    x = read_s8_snorm_float(binary_reader, None, endianness)
-    y = read_s8_snorm_float(binary_reader, None, endianness)
-    z = read_s8_snorm_float(binary_reader, None, endianness)
-    w = binary_reader.read_u8(endianness)
+    x, y, z, w = BinaryReader.read_tuple_4(
+        binary_reader, read_s8_snorm_float, None, endianness
+    )
     return (x, y, z)
+
+
+def read_packed_color(
+    binary_reader: BinaryReader, args: None, endianness: Endianness
+) -> tuple[float, float, float, float]:
+    return BinaryReader.read_tuple_4(
+        binary_reader, read_u8_unorm_float, None, endianness
+    )
+
+
+@dataclass
+class VertexNormals:
+    normals: list[tuple[float, float, float]]
+
+
+@dataclass
+class VertexColors:
+    colors: list[tuple[float, float, float, float]]
+
+
+VertexNormalsOrColors: typing.TypeAlias = VertexNormals | VertexColors
 
 
 @dataclass
 class VertexBuffer(BinRead):
     positions: list[tuple[float, float, float]]
-    normals: list[tuple[float, float, float]]
+    normals_or_colors: VertexNormalsOrColors
     uvs: typing.Optional[list[tuple[float, float]]]
 
     @classmethod
     def binread(
-        cls, binary_reader: BinaryReader, args: tuple[int, int], endianness: Endianness
+        cls,
+        binary_reader: BinaryReader,
+        args: MeshDescriptor,
+        endianness: Endianness,
     ) -> "VertexBuffer":
-        num_vertices, w = args
+        mesh_descriptor = args
+        num_vertices = mesh_descriptor.num_vertices
+        w = mesh_descriptor.w
+        flags = mesh_descriptor.flags
         positions = binary_reader.read_list(
             num_vertices,
             lambda b, a, e: BinaryReader.read_tuple_3(
@@ -275,12 +308,24 @@ class VertexBuffer(BinRead):
             None,
             endianness,
         )
-        normals = binary_reader.read_list(
-            num_vertices,
-            read_packed_normal,
-            None,
-            endianness,
-        )
+        normals_or_colors_mode = flags & 0x6000
+        if normals_or_colors_mode == 0x2000:
+            normals = binary_reader.read_list(
+                num_vertices,
+                read_packed_normal,
+                None,
+                endianness,
+            )
+            normals_or_colors: VertexNormalsOrColors = VertexNormals(normals)
+        else:
+            assert normals_or_colors_mode == 0x4000
+            colors = binary_reader.read_list(
+                num_vertices,
+                read_packed_color,
+                None,
+                endianness,
+            )
+            normals_or_colors = VertexColors(colors)
         uvs = None
         if w >= 0:
             uvs = binary_reader.read_list(
@@ -289,13 +334,17 @@ class VertexBuffer(BinRead):
                 None,
                 endianness,
             )
-        return VertexBuffer(positions, normals, uvs)
+        return VertexBuffer(positions, normals_or_colors, uvs)
 
     def positions_z_up(self) -> list[tuple[float, float, float]]:
         return [y_up_to_z_up(position) for position in self.positions]
 
-    def normals_z_up(self) -> list[tuple[float, float, float]]:
-        return [y_up_to_z_up(normal) for normal in self.normals]
+    def normals_or_colors_z_up(self) -> VertexNormalsOrColors:
+        match self.normals_or_colors:
+            case VertexNormals(normals):
+                return VertexNormals([y_up_to_z_up(normal) for normal in normals])
+            case VertexColors() as colors:
+                return colors
 
     def uvs_v_up(self) -> typing.Optional[list[tuple[float, float]]]:
         if self.uvs is None:
@@ -324,7 +373,7 @@ class ThreeDObjspPc(BinRead):
     ) -> "ThreeDObjspPc":
         (three_d_objs_pc,) = args
         vertex_buffers = binary_reader.read_list_iter(
-            map(lambda m: (m.num_vertices, m.w), three_d_objs_pc.mesh_descriptors),
+            three_d_objs_pc.mesh_descriptors,
             VertexBuffer.binread,
             endianness,
         )
