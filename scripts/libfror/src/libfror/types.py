@@ -1,18 +1,12 @@
-from enum import ReprEnum
 import os
-from io import BytesIO
 import typing
-from .binrw import (
-    BinWrite,
-    BinaryReader,
-    BinaryWriter,
-    Endianness,
-    BinRead,
-    align_to,
-)
-from dataclasses import dataclass
 import zlib
+from dataclasses import dataclass
+from enum import ReprEnum
+from io import BytesIO
 from pathlib import Path
+
+from .binrw import BinaryReader, BinaryWriter, BinRead, BinWrite, Endianness, align_to
 
 
 @dataclass

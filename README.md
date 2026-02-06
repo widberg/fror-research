@@ -15,7 +15,7 @@ Information that might be useful for modding Ford Racing Off Road (2008) by Razo
 
 ## Prior Work
 
-* [Ford Racing Off Road on GameBanana](https://gamebanana.com/games/8561)
+* [Ford Racing 3 on GameBanana](https://gamebanana.com/games/8561)
 * [Ford Racing 3 Modding page on Fandom Wiki](https://fordracing3.fandom.com/wiki/Modding)
 * [Ford Racing Off Road on WSGF](https://www.wsgf.org/dr/ford-racing-road/en)
 

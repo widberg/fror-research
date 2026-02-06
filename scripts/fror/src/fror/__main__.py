@@ -1,18 +1,15 @@
+import abc
 import argparse
 import contextlib
-from dataclasses import dataclass
-from io import BytesIO
-from pathlib import Path
+import logging
 import re
-from string import Template
-import typing
-import abc
 import subprocess
 import tempfile
+import typing
+from dataclasses import dataclass
+from pathlib import Path
 
 from annotated_types import Len
-from pydantic import BaseModel, ConfigDict
-
 from libfror.binrw import (
     BinaryReader,
     BinaryWriter,
@@ -22,22 +19,23 @@ from libfror.binrw import (
     get_decompressed_binary_reader_from_path,
 )
 from libfror.types import (
-    DBF_FILE_FORMAT,
     BININFO_BIN_FILE_FORMAT,
+    DBF,
+    DBF_FILE_FORMAT,
+    FONTS_DAT_FILE_FORMAT,
     FONTS_HDR_FILE_FORMAT,
     FONTS_RAW_FILE_FORMAT,
-    FONTS_DAT_FILE_FORMAT,
     GRADIENT_DAT_FILE_FORMAT,
+    NPC,
     NPC_FILE_FORMAT,
+    PCG,
     PCG_FILE_FORMAT,
     PVS_FILE_FORMAT,
     SPC_FILE_FORMAT,
     TEXTURES_PC_FILE_FORMAT,
     THREE_D_OBJ_DB_PC_FILE_FORMAT,
     THREE_D_OBJS_PC_FILE_FORMAT,
-    DBF,
-    NPC,
-    PCG,
+    BininfoBin,
     DDSHeader,
     DDSPixelFormat,
     FileFormat,
@@ -49,10 +47,8 @@ from libfror.types import (
     TexturesPcEntry2,
     TexturesPcEntry3,
     TexturesPcEntry4,
-    BininfoBin,
 )
-
-import logging
+from pydantic import BaseModel, ConfigDict
 
 logging.basicConfig(level=logging.DEBUG, format="%(levelname)s:%(message)s")
 

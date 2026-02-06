@@ -1,11 +1,11 @@
+import abc
+import os
+import struct
+import typing
+import zlib
+from enum import StrEnum
 from io import BytesIO
 from pathlib import Path
-import struct
-import os
-from enum import StrEnum
-import typing
-import abc
-import zlib
 
 
 def decompress(binary_reader: BinaryReader) -> bytes:

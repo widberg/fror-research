@@ -1,10 +1,9 @@
+import tempfile
 from pathlib import Path
 
 import bpy
-from bpy_extras.io_utils import ImportHelper
 from bpy.types import Operator
-
-import tempfile
+from bpy_extras.io_utils import ImportHelper
 
 from .modules.libfror.binrw import Endianness
 from .modules.libfror.types import ThreeDObjPc
