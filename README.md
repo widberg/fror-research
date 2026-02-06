@@ -31,22 +31,32 @@ Standard formats
 | --- | --- |
 | `*.at3` | [ATRAC](https://en.wikipedia.org/wiki/ATRAC)3+ (Adaptive TRansform Acoustic Coding 3+) |
 | `*.dds` | [DirectDraw Surface](https://en.wikipedia.org/wiki/DirectDraw_Surface) |
+| `*.txt` | [Text File](https://en.wikipedia.org/wiki/Text_file) |
 | `*.url` | [URL File Format](https://web.archive.org/web/20240128011848/http://www.lyberty.com/encyc/articles/tech/dot_url_format_-_an_unofficial_guide.html) |
 | `*.wav` | [Waveform Audio File Format (WAVE)](https://en.wikipedia.org/wiki/WAV) |
-| `*.wiv` | Uncompressed [WAVE](https://en.wikipedia.org/wiki/WAV) |
 | `*.WMA` | [Windows Media Audio](https://en.wikipedia.org/wiki/Windows_Media_Audio) |
 
 Ford Racing Off Road formats
 
 | Glob | Type | Compressed | Pattern |
 | --- | --- | --- | --- |
+| `*.cdb` | Controllers Database/text | False | |
+| `*.cfg` | config/text | False | |
+| `*.dat` | data/text | False | |
 | `*.dbf` | | False | `dbf.hexpat` |
+| `*.hpa` | [HLSL Pixel Assembly](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-using-shaders-9) | False | |
+| `*.hpo` | [HLSL Pixel Object](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-using-shaders-9) | False | |
+| `*.hva` | [HLSL Vertex Assembly](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-using-shaders-9) | False | |
+| `*.hvo` | [HLSL Vertex Object](https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-using-shaders-9) | False | |
 | `*.npc` | | False | `npc.hexpat` |
+| `*.old` | old/text | False | |
 | `*.pcg` | | True | `pcg.hexpat` |
-| `*.pse` | Particle Effects/text | False |  |
+| `*.pse` | Particle Effects/text | False | |
 | `*.pvs` | [Potentially visible set](https://en.wikipedia.org/wiki/Potentially_visible_set) | True | `pvs.hexpat` |
 | `*.spc` | | False | `spc.hexpat` |
-| `*.ui` | ui/text | False |  |
+| `*.tpe` | Track Particle Effects/text | False | |
+| `*.ui` | ui/text | False | |
+| `*.wiv` | Uncompressed [WAVE](https://en.wikipedia.org/wiki/WAV) | False | |
 | `3dobjdb.pc` | | False | `three_d_obj_db_pc.hexpat` |
 | `3dobjs.pc` | | True | `three_d_objs_pc.hexpat` |
 | `3dobjsp.pc` | | True | `three_d_objsp_pc.hexpat` |
@@ -98,6 +108,15 @@ Once open you can select the save file, for me this is `%AppData%\Ford Racing Of
 
 ### Signatures
 
+#### [certutil](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/certutil)
+
+```console
+certutil -hashfile FordORR.exe SHA256
+SHA256 hash of FordORR.exe:
+f5f94e217d17279f9df0438aeb6e8c7e74983969cf95f4a8ab8d04259a1f63bc
+CertUtil: -hashfile command completed successfully.
+```
+
 #### [Detect It Easy](https://github.com/horsicq/Detect-It-Easy)
 
 `FordORR.exe`
@@ -111,6 +130,8 @@ PE32
     (Heur)Protection: Generic[Custom DOS]
     (Heur)Licensing: Licensing[Strings]
 ```
+
+The `(Heur)Protection: Generic[Custom DOS]` is a false positive due to the DOS stub string being `"this is a Windows 95 executable"` instead of a more well known one. The `(Heur)Licensing: Licensing[Strings]` is a false positive due to the string `"activate"` appearing as a substring of `"unable to activate the wave, not enough cars available"`.
 
 #### [signsrch](https://aluigi.altervista.org/mytoolz.htm)
 
