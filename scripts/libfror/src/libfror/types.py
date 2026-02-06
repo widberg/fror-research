@@ -6,7 +6,14 @@ from enum import ReprEnum
 from io import BytesIO
 from pathlib import Path
 
-from .binrw import BinaryReader, BinaryWriter, BinRead, BinWrite, Endianness, align_to
+from .binrw import (
+    BinaryReader,
+    BinaryWriter,
+    BinRead,
+    BinWrite,
+    Endianness,
+    align_to,
+)
 
 
 @dataclass
@@ -1234,29 +1241,16 @@ class ThreeDObjPc:
         bininfo_bin_path = path / "bininfo.bin"
         textures_pc_path = path / "textures.pc"
 
-        # three_d_obj_db_pc
         three_d_obj_db_pc = three_d_obj_db_pc_path.read_bytes()
-
-        # three_d_objs_pc
         three_d_objs_pc = ThreeDObjsPc.binread_from_path_decompress(
             three_d_objs_pc_path,
             None,
             endianness,
         )
-
-        # three_d_objsp_pc
         three_d_objsp_pc = ThreeDObjspPc.binread_from_path_decompress(
             three_d_objsp_pc_path, (three_d_objs_pc,), endianness
         )
-
-        # bininfo_bin
-        with open(bininfo_bin_path, "rb") as f:
-            bininfo_bin_binary_reader = BinaryReader(f)
-            bininfo_bin = BininfoBin.binread(
-                bininfo_bin_binary_reader, None, endianness
-            )
-
-        # textures_pc
+        bininfo_bin = BininfoBin.binread_from_path(bininfo_bin_path, None, endianness)
         textures_pc = TexturesPc.binread_from_path_decompress(
             textures_pc_path, None, endianness
         )

@@ -13,6 +13,7 @@ COLOR_ATTRIBUTE_NAME = "Color"
 MESH_NAME_PREFIX = "fror_mesh_"
 MATERIAL_NAME_PREFIX = "fror_material_"
 VERTEX_COLOR_MATERIAL_NAME_PREFIX = "fror_vertex_color_"
+SOURCE_DIRECTORY_PROP = "fror_source_directory"
 
 
 def _load_packed_images(textures_pc: TexturesPc):
@@ -34,7 +35,9 @@ def _load_packed_images(textures_pc: TexturesPc):
     return packed_images
 
 
-def _create_material_from_image(image: bpy.types.Image, name: str) -> bpy.types.Material:
+def _create_material_from_image(
+    image: bpy.types.Image, name: str
+) -> bpy.types.Material:
     material = bpy.data.materials.new(name)
     material.use_nodes = True
 
@@ -89,7 +92,9 @@ def _apply_vertex_color_global_illumination(
     nodes = material.node_tree.nodes
     links = material.node_tree.links
 
-    image_node = next((node for node in nodes if node.bl_idname == "ShaderNodeTexImage"), None)
+    image_node = next(
+        (node for node in nodes if node.bl_idname == "ShaderNodeTexImage"), None
+    )
     bsdf_node = next(
         (node for node in nodes if node.bl_idname == "ShaderNodeBsdfPrincipled"),
         None,
@@ -147,6 +152,7 @@ class ImportFROR(Operator, ImportHelper):
     def execute(self, context: bpy.types.Context) -> set[str]:
         directory_path = Path(self.filepath)
         endianness = Endianness.LITTLE
+        context.scene[SOURCE_DIRECTORY_PROP] = str(directory_path)
         three_d_obj_pc = ThreeDObjPc.from_directory_path(directory_path, endianness)
         three_d_objs_pc = three_d_obj_pc.three_d_objs_pc
         three_d_objsp_pc = three_d_obj_pc.three_d_objsp_pc
