@@ -86,6 +86,9 @@ class BinaryReader:
     def read_u32(self, endianness: Endianness) -> int:
         return self.read_struct("I", endianness)[0]
 
+    def read_u32_args(self, args: None, endianness: Endianness) -> int:
+        return self.read_u32(endianness)
+
     def read_s16(self, endianness: Endianness) -> int:
         return self.read_struct("h", endianness)[0]
 
@@ -94,6 +97,9 @@ class BinaryReader:
 
     def read_u16_args(self, args: None, endianness: Endianness) -> int:
         return self.read_u16(endianness)
+
+    def read_s8(self, endianness: Endianness) -> int:
+        return self.read_struct("b", endianness)[0]
 
     def read_u8(self, endianness: Endianness) -> int:
         return self.read_struct("B", endianness)[0]

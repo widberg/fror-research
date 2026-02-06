@@ -1,10 +1,13 @@
 import fror;
+import std.sys;
 
 struct VertexBuffer<auto S, auto B> {
     Vec3f vertices[S];
-    Vec2S16Float uvs[S];
+    Vec4SNorm8 normals[S];
+    std::assert(all_vec4_snorm8_xyz_lengths_unit_within_epsilon(normals, 0.1), "");
+    std::assert(all_vec4_snorm8_w_is_zero(normals), "");
     if (B) {
-        Vec2S16Float uvs2[S];
+        Vec2S16Float uvs[S];
     }
 };
 

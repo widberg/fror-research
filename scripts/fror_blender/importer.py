@@ -1,12 +1,31 @@
-import tempfile
 from pathlib import Path
+from uuid import uuid4
 
 import bpy
 from bpy.types import Operator
 from bpy_extras.io_utils import ImportHelper
 
 from .modules.libfror.binrw import Endianness
-from .modules.libfror.types import ThreeDObjPc
+from .modules.libfror.types import TexturesPc, ThreeDObjPc
+
+
+def _load_packed_images(textures_pc: TexturesPc):
+    temp_dir = Path(bpy.app.tempdir or ".")
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    packed_images = []
+    for textures_pc_entry4 in textures_pc.entries4:
+        dds = textures_pc_entry4.to_dds()
+        path = temp_dir / f"fror_{uuid4().hex}.dds"
+        path.write_bytes(dds)
+        try:
+            image = bpy.data.images.load(str(path))
+            image.use_fake_user = True
+            image.pack()
+        finally:
+            path.unlink()
+        packed_images.append(image)
+    return packed_images
 
 
 class ImportFROR(Operator, ImportHelper):  # type: ignore
@@ -17,47 +36,40 @@ class ImportFROR(Operator, ImportHelper):  # type: ignore
     def execute(self, context: bpy.types.Context) -> set[str]:
         directory_path = Path(self.filepath)  # type: ignore
         endianness = Endianness.LITTLE
-        three_d_obj = ThreeDObjPc.from_directory_path(directory_path, endianness)
+        three_d_obj_pc = ThreeDObjPc.from_directory_path(directory_path, endianness)
+        three_d_objs_pc = three_d_obj_pc.three_d_objs_pc
+        three_d_objsp_pc = three_d_obj_pc.three_d_objsp_pc
+        textures_pc = three_d_obj_pc.textures_pc
 
-        for i in range(len(three_d_obj.three_d_objsp_pc.vertex_buffers)):
+        packed_images = _load_packed_images(textures_pc)
+
+        for i in range(len(three_d_objsp_pc.vertex_buffers)):
             mesh = bpy.data.meshes.new(f"myBeautifulMesh{i}")  # type: ignore
             obj = bpy.data.objects.new(mesh.name, mesh)  # type: ignore
             col = bpy.data.collections["Collection"]  # type: ignore
             col.objects.link(obj)  # type: ignore
             bpy.context.view_layer.objects.active = obj  # type: ignore
 
-            vertex_buffer = three_d_obj.three_d_objsp_pc.vertex_buffers[i]
-            triangle_strip_buffer = three_d_obj.three_d_objs_pc.triangle_strip_buffers[
-                i
-            ]
-            mesh_descriptor = three_d_obj.three_d_objs_pc.mesh_descriptors[i]
+            vertex_buffer = three_d_objsp_pc.vertex_buffers[i]
+            triangle_strip_buffer = three_d_objs_pc.triangle_strip_buffers[i]
+            mesh_descriptor = three_d_objs_pc.mesh_descriptors[i]
 
             vertices = vertex_buffer.positions_z_up()
             edges: list[tuple[int, int]] = []
-            faces = triangle_strip_buffer.to_triangles()
+            faces = triangle_strip_buffer.to_triangles_ccw()
 
             mesh.from_pydata(vertices, edges, faces)
 
-            uvs2 = vertex_buffer.uvs2_v_up()
-            if uvs2 is not None:
+            uvs = vertex_buffer.uvs_v_up()
+            if uvs is not None:
                 uv_layer = mesh.uv_layers.new()
                 for polygon in mesh.polygons:
                     for loop_index in polygon.loop_indices:
                         vertex_index = mesh.loops[loop_index].vertex_index
-                        uv_layer.data[loop_index].uv = uvs2[vertex_index]
+                        uv_layer.data[loop_index].uv = uvs[vertex_index]
 
             if mesh_descriptor.w != -1:
-                textures_pc_entry4 = three_d_obj.textures_pc.entries4[mesh_descriptor.w]
-                dds = textures_pc_entry4.to_dds()
-                with tempfile.NamedTemporaryFile(
-                    "wb", suffix=".dds", delete=False
-                ) as f:
-                    f.write(dds)
-                    path = Path(f.name)
-                image = bpy.data.images.load(str(path))
-                image.use_fake_user = True
-                image.pack()
-                path.unlink()
+                image = packed_images[mesh_descriptor.w]
 
                 material = bpy.data.materials.new("test" + str(i))
                 material.use_nodes = True
@@ -80,6 +92,18 @@ class ImportFROR(Operator, ImportHelper):  # type: ignore
                 links.new(bsdf_node.outputs["BSDF"], out_node.inputs["Surface"])
 
                 mesh.materials.append(material)
+
+            mesh.validate(clean_customdata=False)
+            mesh.update()
+
+            normals = vertex_buffer.normals_z_up()
+            assert len(normals) == len(vertices)
+            mesh.normals_split_custom_set_from_vertices(normals)
+
+            if uvs is not None:
+                mesh.calc_tangents()
+            mesh.validate(clean_customdata=False)
+            mesh.update()
 
         return {"FINISHED"}
 

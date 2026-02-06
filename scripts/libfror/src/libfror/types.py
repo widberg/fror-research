@@ -163,7 +163,7 @@ class TriangleStripBuffer(BinRead):
         )
         return TriangleStripBuffer(triangle_strips)
 
-    def to_triangles(self) -> list[list[int]]:
+    def to_triangles_cw(self) -> list[list[int]]:
         triangles: list[list[int]] = []
 
         for current_strip in self.triangle_strips:
@@ -177,8 +177,11 @@ class TriangleStripBuffer(BinRead):
 
         return triangles
 
+    def to_triangles_ccw(self) -> list[list[int]]:
+        return [[a, c, b] for a, b, c in self.to_triangles_cw()]
+
     @classmethod
-    def from_triangles(cls, triangles: list[list[int]]) -> "TriangleStripBuffer":
+    def from_triangles_cw(cls, triangles: list[list[int]]) -> "TriangleStripBuffer":
         strips: list[TriangleStrip] = []
 
         for triangle in triangles:
@@ -198,6 +201,10 @@ class TriangleStripBuffer(BinRead):
             strips.append(TriangleStrip([triangle[0], triangle[1], triangle[2]]))
 
         return TriangleStripBuffer(strips)
+
+    @classmethod
+    def from_triangles_ccw(cls, triangles: list[list[int]]) -> "TriangleStripBuffer":
+        return cls.from_triangles_cw([[a, c, b] for a, b, c in triangles])
 
 
 @dataclass
@@ -225,16 +232,35 @@ class ThreeDObjsPc(BinRead):
         return ThreeDObjsPc(entries, mesh_descriptors, triangle_strip_buffers)
 
 
-def read_u16_float(binary_reader: BinaryReader, args: None, endianness: Endianness):
+def read_s16_float(binary_reader: BinaryReader, args: None, endianness: Endianness):
     value = binary_reader.read_s16(endianness)
     return float(value) / 0x800
+
+
+def read_s8_snorm_float(
+    binary_reader: BinaryReader, args: None, endianness: Endianness
+):
+    value = binary_reader.read_s8(endianness)
+    if value == -128:
+        return -1.0
+    return float(value) / 127.0
+
+
+def read_packed_normal(
+    binary_reader: BinaryReader, args: None, endianness: Endianness
+) -> tuple[float, float, float]:
+    x = read_s8_snorm_float(binary_reader, None, endianness)
+    y = read_s8_snorm_float(binary_reader, None, endianness)
+    z = read_s8_snorm_float(binary_reader, None, endianness)
+    w = binary_reader.read_u8(endianness)
+    return (x, y, z)
 
 
 @dataclass
 class VertexBuffer(BinRead):
     positions: list[tuple[float, float, float]]
-    uvs: list[tuple[float, float]]
-    uvs2: typing.Optional[list[tuple[float, float]]]
+    normals: list[tuple[float, float, float]]
+    uvs: typing.Optional[list[tuple[float, float]]]
 
     @classmethod
     def binread(
@@ -249,29 +275,32 @@ class VertexBuffer(BinRead):
             None,
             endianness,
         )
-        uvs = binary_reader.read_list(
+        normals = binary_reader.read_list(
             num_vertices,
-            lambda b, a, e: BinaryReader.read_tuple_2(b, read_u16_float, a, e),
+            read_packed_normal,
             None,
             endianness,
         )
-        uvs2 = None
+        uvs = None
         if w >= 0:
-            uvs2 = binary_reader.read_list(
+            uvs = binary_reader.read_list(
                 num_vertices,
-                lambda b, a, e: BinaryReader.read_tuple_2(b, read_u16_float, a, e),
+                lambda b, a, e: BinaryReader.read_tuple_2(b, read_s16_float, a, e),
                 None,
                 endianness,
             )
-        return VertexBuffer(positions, uvs, uvs2)
+        return VertexBuffer(positions, normals, uvs)
 
     def positions_z_up(self) -> list[tuple[float, float, float]]:
         return [y_up_to_z_up(position) for position in self.positions]
 
-    def uvs2_v_up(self) -> typing.Optional[list[tuple[float, float]]]:
-        if self.uvs2 is None:
+    def normals_z_up(self) -> list[tuple[float, float, float]]:
+        return [y_up_to_z_up(normal) for normal in self.normals]
+
+    def uvs_v_up(self) -> typing.Optional[list[tuple[float, float]]]:
+        if self.uvs is None:
             return None
-        return [v_down_to_v_up(uv) for uv in self.uvs2]
+        return [v_down_to_v_up(uv) for uv in self.uvs]
 
 
 def y_up_to_z_up(position: tuple[float, float, float]) -> tuple[float, float, float]:
