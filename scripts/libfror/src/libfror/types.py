@@ -265,6 +265,22 @@ class VertexBuffer(BinRead):
             )
         return VertexBuffer(positions, uvs, uvs2)
 
+    def positions_z_up(self) -> list[tuple[float, float, float]]:
+        return [y_up_to_z_up(position) for position in self.positions]
+
+    def uvs2_v_up(self) -> typing.Optional[list[tuple[float, float]]]:
+        if self.uvs2 is None:
+            return None
+        return [v_down_to_v_up(uv) for uv in self.uvs2]
+
+
+def y_up_to_z_up(position: tuple[float, float, float]) -> tuple[float, float, float]:
+    return (position[0], position[2], position[1])
+
+
+def v_down_to_v_up(uv: tuple[float, float]) -> tuple[float, float]:
+    return (uv[0], 1 - uv[1])
+
 
 @dataclass
 class ThreeDObjspPc(BinRead):

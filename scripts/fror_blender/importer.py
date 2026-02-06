@@ -9,14 +9,6 @@ from .modules.libfror.binrw import Endianness
 from .modules.libfror.types import ThreeDObjPc
 
 
-def fror_to_blender(position: tuple[float, float, float]) -> tuple[float, float, float]:
-    return (position[0], position[2], position[1])
-
-
-def fror_to_blender_uvs2(position: tuple[float, float]) -> tuple[float, float]:
-    return (position[0], 1 - position[1])
-
-
 class ImportFROR(Operator, ImportHelper):  # type: ignore
     bl_idname = "fror_blender.import_fror"
     bl_label = "Import Ford Racing Off Road"
@@ -40,24 +32,19 @@ class ImportFROR(Operator, ImportHelper):  # type: ignore
             ]
             mesh_descriptor = three_d_obj.three_d_objs_pc.mesh_descriptors[i]
 
-            verts = vertex_buffer.positions
-            uvs = vertex_buffer.uvs
-            uvs2 = vertex_buffer.uvs2
-
-            blender_verts = list(map(fror_to_blender, verts))
-
+            vertices = vertex_buffer.positions_z_up()
             edges: list[tuple[int, int]] = []
             faces = triangle_strip_buffer.to_triangles()
 
-            mesh.from_pydata(blender_verts, edges, faces)
+            mesh.from_pydata(vertices, edges, faces)
 
+            uvs2 = vertex_buffer.uvs2_v_up()
             if uvs2 is not None:
-                blender_uvs2 = list(map(fror_to_blender_uvs2, uvs2))
                 uv_layer = mesh.uv_layers.new()
                 for polygon in mesh.polygons:
                     for loop_index in polygon.loop_indices:
                         vertex_index = mesh.loops[loop_index].vertex_index
-                        uv_layer.data[loop_index].uv = blender_uvs2[vertex_index]
+                        uv_layer.data[loop_index].uv = uvs2[vertex_index]
 
             if mesh_descriptor.w != -1:
                 textures_pc_entry4 = three_d_obj.textures_pc.entries4[mesh_descriptor.w]
