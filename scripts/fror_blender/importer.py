@@ -9,22 +9,6 @@ from .modules.libfror.binrw import Endianness
 from .modules.libfror.types import ThreeDObjPc
 
 
-def triangle_strip_to_indexed_triangles(strip_indices):
-    indexed_triangles = []
-    for i in range(2, len(strip_indices)):
-        if i % 2 == 0:
-            # Even triangle: (v0, v1, v2)
-            indexed_triangles.append(
-                [strip_indices[i - 2], strip_indices[i - 1], strip_indices[i]]
-            )
-        else:
-            # Odd triangle: (v1, v0, v2)
-            indexed_triangles.append(
-                [strip_indices[i - 1], strip_indices[i - 2], strip_indices[i]]
-            )
-    return indexed_triangles
-
-
 def fror_to_blender(position: tuple[float, float, float]) -> tuple[float, float, float]:
     return (position[0], position[2], position[1])
 
@@ -63,10 +47,7 @@ class ImportFROR(Operator, ImportHelper):  # type: ignore
             blender_verts = list(map(fror_to_blender, verts))
 
             edges: list[tuple[int, int]] = []
-            faces = []
-            for ngon in triangle_strip_buffer.triangle_strips:
-                indexed_triangles = triangle_strip_to_indexed_triangles(ngon.indices)
-                faces.extend(indexed_triangles)
+            faces = triangle_strip_buffer.to_triangles()
 
             mesh.from_pydata(blender_verts, edges, faces)
 

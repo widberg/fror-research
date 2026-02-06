@@ -163,6 +163,42 @@ class TriangleStripBuffer(BinRead):
         )
         return TriangleStripBuffer(triangle_strips)
 
+    def to_triangles(self) -> list[list[int]]:
+        triangles: list[list[int]] = []
+
+        for current_strip in self.triangle_strips:
+            indices = current_strip.indices
+            assert len(indices) >= 3
+            for i in range(2, len(indices)):
+                if i % 2 == 0:
+                    triangles.append([indices[i - 2], indices[i - 1], indices[i]])
+                else:
+                    triangles.append([indices[i - 1], indices[i - 2], indices[i]])
+
+        return triangles
+
+    @classmethod
+    def from_triangles(cls, triangles: list[list[int]]) -> "TriangleStripBuffer":
+        strips: list[TriangleStrip] = []
+
+        for triangle in triangles:
+            assert len(triangle) == 3
+
+            if strips:
+                current_strip = strips[-1]
+                indices = current_strip.indices
+                if (len(indices) - 2) % 2 == 0:
+                    required_v0, required_v1 = indices[-2], indices[-1]
+                else:
+                    required_v0, required_v1 = indices[-1], indices[-2]
+                if triangle[0] == required_v0 and triangle[1] == required_v1:
+                    indices.append(triangle[2])
+                    continue
+
+            strips.append(TriangleStrip([triangle[0], triangle[1], triangle[2]]))
+
+        return TriangleStripBuffer(strips)
+
 
 @dataclass
 class ThreeDObjsPc(BinRead):
