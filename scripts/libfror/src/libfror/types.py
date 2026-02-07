@@ -171,6 +171,9 @@ class MeshDescriptor(BinRead, BinWrite):
         args: None,
         endianness: Endianness,
     ) -> None:
+        assert -0x8000 <= value.w <= 0x7FFF
+        assert 0 <= value.num_vertices <= 0xFFFF
+        assert 0 <= value.num_triangle_strips <= 0xFFFF
         binary_writer.write_u32(value.flags, endianness)
         binary_writer.write_s16(value.w, endianness)
         binary_writer.write_u16(value.num_vertices, endianness)
@@ -202,6 +205,8 @@ class TriangleStrip(BinRead, BinWrite):
         args: None,
         endianness: Endianness,
     ) -> None:
+        assert len(value.indices) <= 0xFFFF
+        assert all(0 <= index <= 0xFFFF for index in value.indices)
         binary_writer.write_u16(len(value.indices), endianness)
         binary_writer.write_list(
             value.indices, BinaryWriter.write_u16_args, None, endianness
@@ -491,6 +496,7 @@ class VertexBuffer(BinRead, BinWrite):
     ) -> None:
         mesh_descriptor = args
         num_vertices = mesh_descriptor.num_vertices
+        assert 0 <= num_vertices <= 0xFFFF
         w = mesh_descriptor.w
         flags = mesh_descriptor.flags
         assert len(value.positions) == num_vertices
@@ -539,27 +545,71 @@ class VertexBuffer(BinRead, BinWrite):
             assert value.uvs is None
 
     def positions_z_up(self) -> list[tuple[float, float, float]]:
-        return [y_up_to_z_up(position) for position in self.positions]
+        return self.to_z_up_v_up().positions
 
     def normals_or_colors_z_up(self) -> VertexNormalsOrColors:
-        match self.normals_or_colors:
-            case VertexNormals(normals):
-                return VertexNormals([y_up_to_z_up(normal) for normal in normals])
-            case VertexColors() as colors:
-                return colors
+        return self.to_z_up_v_up().normals_or_colors
 
     def uvs_v_up(self) -> typing.Optional[list[tuple[float, float]]]:
-        if self.uvs is None:
-            return None
-        return [v_down_to_v_up(uv) for uv in self.uvs]
+        return self.to_z_up_v_up().uvs
+
+    def to_z_up_v_up(self) -> "VertexBuffer":
+        return VertexBuffer(
+            [y_up_to_z_up(position) for position in self.positions],
+            normals_or_colors_y_up_to_z_up(self.normals_or_colors),
+            None if self.uvs is None else [v_down_to_v_up(uv) for uv in self.uvs],
+        )
+
+    def to_y_up_v_down(self) -> "VertexBuffer":
+        return VertexBuffer(
+            [z_up_to_y_up(position) for position in self.positions],
+            normals_or_colors_z_up_to_y_up(self.normals_or_colors),
+            None if self.uvs is None else [v_up_to_v_down(uv) for uv in self.uvs],
+        )
+
+    @staticmethod
+    def from_z_up_v_up(value: "VertexBuffer") -> "VertexBuffer":
+        return value.to_y_up_v_down()
+
+    @staticmethod
+    def from_y_up_v_down(value: "VertexBuffer") -> "VertexBuffer":
+        return value.to_z_up_v_up()
 
 
 def y_up_to_z_up(position: tuple[float, float, float]) -> tuple[float, float, float]:
     return (position[0], position[2], position[1])
 
 
+def z_up_to_y_up(position: tuple[float, float, float]) -> tuple[float, float, float]:
+    return (position[0], position[2], position[1])
+
+
 def v_down_to_v_up(uv: tuple[float, float]) -> tuple[float, float]:
     return (uv[0], 1 - uv[1])
+
+
+def v_up_to_v_down(uv: tuple[float, float]) -> tuple[float, float]:
+    return (uv[0], 1 - uv[1])
+
+
+def normals_or_colors_y_up_to_z_up(
+    normals_or_colors: VertexNormalsOrColors,
+) -> VertexNormalsOrColors:
+    match normals_or_colors:
+        case VertexNormals(normals):
+            return VertexNormals([y_up_to_z_up(normal) for normal in normals])
+        case VertexColors() as colors:
+            return colors
+
+
+def normals_or_colors_z_up_to_y_up(
+    normals_or_colors: VertexNormalsOrColors,
+) -> VertexNormalsOrColors:
+    match normals_or_colors:
+        case VertexNormals(normals):
+            return VertexNormals([z_up_to_y_up(normal) for normal in normals])
+        case VertexColors() as colors:
+            return colors
 
 
 @dataclass

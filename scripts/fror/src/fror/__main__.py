@@ -1,13 +1,16 @@
 import abc
 import argparse
 import contextlib
+import enum
 import logging
 import re
+import shutil
 import subprocess
 import tempfile
 import typing
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import uuid4
 
 from annotated_types import Len
 from libfror.binrw import (
@@ -83,6 +86,129 @@ class Subcommand(typing.Protocol[A]):
     @classmethod
     @abc.abstractmethod
     def execute(cls, args: A) -> None: ...
+
+
+class CompareMode(enum.Enum):
+    FILE = "file"
+    REEXTRACT = "reextract"
+    REEXTRACT_3DO = "reextract_3do"
+
+
+X3DO_BLENDER_SCRIPT = """import importlib
+import sys
+import types
+import uuid
+from pathlib import Path
+
+import bpy
+
+
+def load_fror_blender_package(addon_directory: str) -> str:
+    addon_path = Path(addon_directory).resolve()
+    if not addon_path.is_dir():
+        raise FileNotFoundError(f"Invalid addon directory: {addon_path}")
+
+    package_name = f"_fror_blender_cli_temp_{uuid.uuid4().hex}"
+    package = types.ModuleType(package_name)
+    package.__path__ = [str(addon_path)]
+    package.__package__ = package_name
+    sys.modules[package_name] = package
+    return package_name
+
+
+argv = sys.argv
+script_args = argv[argv.index("--") + 1 :] if "--" in argv else []
+if len(script_args) != 3:
+    raise RuntimeError(f"Expected 3 script arguments, got {len(script_args)}.")
+
+addon_directory, source_directory, blend_path = script_args
+package_name = load_fror_blender_package(addon_directory)
+importer = importlib.import_module(f"{package_name}.importer")
+
+importer.import_fror_scene(bpy.context, Path(source_directory).resolve())
+bpy.ops.wm.save_as_mainfile(
+    filepath=str(Path(blend_path).resolve()),
+    check_existing=False,
+    copy=True,
+    relative_remap=False,
+)
+"""
+
+C3DO_BLENDER_SCRIPT = """import importlib
+import sys
+import types
+import uuid
+from pathlib import Path
+
+import bpy
+
+
+def load_fror_blender_package(addon_directory: str) -> str:
+    addon_path = Path(addon_directory).resolve()
+    if not addon_path.is_dir():
+        raise FileNotFoundError(f"Invalid addon directory: {addon_path}")
+
+    package_name = f"_fror_blender_cli_temp_{uuid.uuid4().hex}"
+    package = types.ModuleType(package_name)
+    package.__path__ = [str(addon_path)]
+    package.__package__ = package_name
+    sys.modules[package_name] = package
+    return package_name
+
+
+argv = sys.argv
+script_args = argv[argv.index("--") + 1 :] if "--" in argv else []
+if len(script_args) != 3:
+    raise RuntimeError(f"Expected 3 script arguments, got {len(script_args)}.")
+
+addon_directory, output_directory, source_directory = script_args
+package_name = load_fror_blender_package(addon_directory)
+exporter = importlib.import_module(f"{package_name}.exporter")
+
+source_directory_path = Path(source_directory).resolve() if source_directory else None
+updated_count, warning_messages = exporter.export_fror_scene(
+    bpy.context,
+    Path(output_directory).resolve(),
+    source_directory_path,
+)
+
+print(f"updated_count={updated_count}")
+for warning_message in warning_messages:
+    print(f"warning={warning_message}")
+"""
+
+
+BLENDER_STDIN_SCRIPT_EXPR = (
+    "import sys; exec(compile(sys.stdin.read(), '<stdin>', 'exec'))"
+)
+
+
+def _run_blender_stdin_script(
+    blender: str,
+    script: str,
+    script_args: list[str | Path],
+    blend_file: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    command: list[str | Path] = [blender, "--background"]
+    if blend_file is None:
+        command.append("--factory-startup")
+    else:
+        command.append(blend_file)
+    command += [
+        "--python-exit-code",
+        "1",
+        "--python-expr",
+        BLENDER_STDIN_SCRIPT_EXPR,
+        "--",
+        *[str(script_arg) for script_arg in script_args],
+    ]
+
+    return subprocess.run(
+        command,
+        input=script,
+        capture_output=True,
+        text=True,
+    )
 
 
 class CompressSubcommand(Subcommand):
@@ -182,6 +308,166 @@ class CreateDBFSubcommand(Subcommand):
         )
         dbf = DBF(files)
         DBF.binwrite_to_path(args.dbf, dbf, None, Endianness.LITTLE)
+
+
+class Extract3DObjSubcommand(Subcommand):
+    NAME = "x3do"
+
+    @dataclass
+    class Args:
+        fror_blender_addon: Path
+        three_d_obj_directory: Path
+        blend: Path
+        blender: str
+        verbose: bool
+
+    @classmethod
+    def setup(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("fror_blender_addon", type=Path)
+        parser.add_argument("three_d_obj_directory", type=Path)
+        parser.add_argument("blend", type=Path)
+        parser.add_argument("--blender", type=str, default="blender")
+        parser.add_argument("--verbose", action=argparse.BooleanOptionalAction)
+
+    @classmethod
+    def execute(cls, args: Args) -> None:
+        if not args.fror_blender_addon.is_dir():
+            raise ValueError(
+                f"fror_blender_addon is not a directory: {args.fror_blender_addon}"
+            )
+        if not (args.fror_blender_addon / "importer.py").is_file():
+            raise ValueError(
+                "fror_blender_addon does not contain importer.py: "
+                f"{args.fror_blender_addon}"
+            )
+        if not args.three_d_obj_directory.is_dir():
+            raise ValueError(
+                "three_d_obj_directory is not a directory: "
+                f"{args.three_d_obj_directory}"
+            )
+
+        args.blend.parent.mkdir(parents=True, exist_ok=True)
+        temp_blend_path = Path(tempfile.gettempdir()) / f"fror_x3do_{uuid4().hex}.blend"
+        temp_blend_at_path = Path(str(temp_blend_path) + "@")
+        try:
+            completed_process = _run_blender_stdin_script(
+                args.blender,
+                X3DO_BLENDER_SCRIPT,
+                [
+                    args.fror_blender_addon,
+                    args.three_d_obj_directory,
+                    temp_blend_path,
+                ],
+            )
+            if args.verbose:
+                logging.debug(completed_process.args)
+                if completed_process.stdout:
+                    logging.debug(f"stdout: {completed_process.stdout}")
+                if completed_process.stderr:
+                    logging.debug(f"stderr: {completed_process.stderr}")
+            if completed_process.returncode != 0:
+                error = "!!! ERROR: Failed to extract 3dobj."
+                if args.verbose:
+                    error += (
+                        f"\nreturncode: {completed_process.returncode}"
+                        f"\ncommand: {completed_process.args}"
+                        f"\nstdout: {completed_process.stdout}"
+                        f"\nstderr: {completed_process.stderr}"
+                    )
+                logging.critical(error)
+                raise SystemExit(completed_process.returncode)
+            if not temp_blend_path.is_file():
+                logging.critical(
+                    "!!! ERROR: Failed to extract 3dobj.\n"
+                    "Blender did not produce the expected output: "
+                    f"{temp_blend_path}"
+                )
+                raise SystemExit(1)
+            shutil.copyfile(temp_blend_path, args.blend)
+        finally:
+            temp_blend_path.unlink(missing_ok=True)
+            temp_blend_at_path.unlink(missing_ok=True)
+
+
+class Create3DObjSubcommand(Subcommand):
+    NAME = "c3do"
+
+    @dataclass
+    class Args:
+        fror_blender_addon: Path
+        blend: Path
+        three_d_obj_directory: Path
+        blender: str
+        source_directory: Path | None
+        verbose: bool
+
+    @classmethod
+    def setup(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("fror_blender_addon", type=Path)
+        parser.add_argument("blend", type=Path)
+        parser.add_argument("three_d_obj_directory", type=Path)
+        parser.add_argument("--blender", type=str, default="blender")
+        parser.add_argument(
+            "--source-directory",
+            type=Path,
+            default=None,
+            help="Optional source 3dobj directory. Defaults to scene-stored path.",
+        )
+        parser.add_argument("--verbose", action=argparse.BooleanOptionalAction)
+
+    @classmethod
+    def execute(cls, args: Args) -> None:
+        if not args.fror_blender_addon.is_dir():
+            raise ValueError(
+                f"fror_blender_addon is not a directory: {args.fror_blender_addon}"
+            )
+        if not (args.fror_blender_addon / "exporter.py").is_file():
+            raise ValueError(
+                "fror_blender_addon does not contain exporter.py: "
+                f"{args.fror_blender_addon}"
+            )
+        if not args.blend.is_file():
+            raise ValueError(f"blend file does not exist: {args.blend}")
+        if args.source_directory is not None and not args.source_directory.is_dir():
+            raise ValueError(
+                f"source_directory is not a directory: {args.source_directory}"
+            )
+
+        args.three_d_obj_directory.mkdir(parents=True, exist_ok=True)
+
+        source_directory = (
+            "" if args.source_directory is None else args.source_directory
+        )
+
+        completed_process = _run_blender_stdin_script(
+            args.blender,
+            C3DO_BLENDER_SCRIPT,
+            [
+                args.fror_blender_addon,
+                args.three_d_obj_directory,
+                source_directory,
+            ],
+            blend_file=args.blend,
+        )
+
+        if completed_process.returncode != 0:
+            error = "!!! ERROR: Failed to create 3dobj."
+            if args.verbose:
+                error += (
+                    f"\nreturncode: {completed_process.returncode}"
+                    f"\ncommand: {completed_process.args}"
+                    f"\nstdout: {completed_process.stdout}"
+                    f"\nstderr: {completed_process.stderr}"
+                )
+            logging.critical(error)
+            raise SystemExit(completed_process.returncode)
+
+        if args.verbose:
+            logging.debug(completed_process.args)
+            if completed_process.stdout:
+                logging.debug(f"stdout: {completed_process.stdout}")
+            if completed_process.stderr:
+                logging.debug(f"stderr: {completed_process.stderr}")
 
 
 class NPCFileManifest(BaseModel):
@@ -882,10 +1168,28 @@ class FileCompareSubcommand(Subcommand):
             old_bytes = args.old.read_bytes()
             new_bytes = args.new.read_bytes()
 
+        if len(old_bytes) != len(new_bytes):
+            i = min(len(old_bytes), len(new_bytes))
+            old_byte_str = "<EOF>" if i >= len(old_bytes) else str(old_bytes[i])
+            new_byte_str = "<EOF>" if i >= len(new_bytes) else str(new_bytes[i])
+            logging.critical(
+                (
+                    "old_bytes does not match new_bytes. "
+                    f"{old_byte_str} != {new_byte_str} at 0x{i:X}. "
+                    f"old_len={len(old_bytes)} new_len={len(new_bytes)} "
+                    f"old={args.old} new={args.new}"
+                )
+            )
+            raise SystemExit(1)
+
         for i, (old_byte, new_byte) in enumerate(zip(old_bytes, new_bytes)):
             if old_byte != new_byte:
                 logging.critical(
-                    f"old_bytes does not match new_bytes. {old_byte} != {new_byte} at 0x{i:X}."
+                    (
+                        "old_bytes does not match new_bytes. "
+                        f"{old_byte} != {new_byte} at 0x{i:X}. "
+                        f"old={args.old} new={args.new}"
+                    )
                 )
                 raise SystemExit(1)
 
@@ -898,12 +1202,57 @@ class FRORValidateSubcommand(Subcommand):
         file_format: FileFormat
         extract_subcommand: typing.Type[Subcommand]
         create_subcommand: typing.Type[Subcommand]
-        file_compare: bool
+        file_compare: CompareMode
 
-        def commands(self, input_path: Path, tmp_path: Path) -> list[list[str | Path]]:
+        def commands(
+            self,
+            input_path: Path,
+            tmp_path: Path,
+            fror_blender_addon: Path | None,
+            blender: str,
+        ) -> list[list[str | Path]]:
             underscored_input_path = re.sub(r"[^a-zA-Z0-9_-]", "_", str(input_path))
             intermediate_path = underscored_input_path + ".intermediate"
             intermediate2_path = underscored_input_path + ".intermediate2"
+
+            if self.file_compare is CompareMode.REEXTRACT_3DO:
+                if fror_blender_addon is None:
+                    raise ValueError(
+                        "3do test format requires --fror-blender-addon argument."
+                    )
+                input_directory = input_path.parent
+                intermediate_blend_path = tmp_path / (intermediate_path + ".blend")
+                output_directory = tmp_path / underscored_input_path
+                intermediate2_blend_path = tmp_path / (intermediate2_path + ".blend")
+                extract_3do_command: list[str | Path] = [
+                    "fror",
+                    self.extract_subcommand.NAME,
+                    fror_blender_addon,
+                    input_directory,
+                    intermediate_blend_path,
+                    "--blender",
+                    blender,
+                ]
+                create_3do_command: list[str | Path] = [
+                    "fror",
+                    self.create_subcommand.NAME,
+                    fror_blender_addon,
+                    intermediate_blend_path,
+                    output_directory,
+                    "--blender",
+                    blender,
+                ]
+                check_3do_command: list[str | Path] = [
+                    "fror",
+                    self.extract_subcommand.NAME,
+                    fror_blender_addon,
+                    output_directory,
+                    intermediate2_blend_path,
+                    "--blender",
+                    blender,
+                ]
+                return [extract_3do_command, create_3do_command, check_3do_command]
+
             extract_command: list[str | Path] = [
                 "fror",
                 self.extract_subcommand.NAME,
@@ -916,8 +1265,8 @@ class FRORValidateSubcommand(Subcommand):
                 tmp_path / intermediate_path,
                 tmp_path / underscored_input_path,
             ]
-            check_command: list[str | Path] = []
-            if self.file_compare:
+            check_command: list[str | Path]
+            if self.file_compare is CompareMode.FILE:
                 check_command = [
                     "fror",
                     "fcmp",
@@ -926,35 +1275,68 @@ class FRORValidateSubcommand(Subcommand):
                 ]
                 if self.file_format.compressed:
                     check_command += ["--decompress"]
-            else:
+            elif self.file_compare is CompareMode.REEXTRACT:
                 check_command = [
                     "fror",
                     self.extract_subcommand.NAME,
                     tmp_path / underscored_input_path,
                     tmp_path / intermediate2_path,
                 ]
+            else:
+                raise ValueError(f"Unknown compare mode: {self.file_compare}")
+
             commands = [extract_command, create_command, check_command]
             return commands
 
     # Fake file format to test the compress/decompress subcommands
     COMPRESSED_FILE_FORMAT = FileFormat("compressed", PVS_FILE_FORMAT.glob, True)
+    # Fake file format to test x3do/c3do subcommands from 3dobjdb file roots
+    THREE_D_OBJ_DIRECTORY_FILE_FORMAT = FileFormat(
+        "3dobj", THREE_D_OBJ_DB_PC_FILE_FORMAT.glob, False
+    )
 
     FORMATS: list[Format] = [
-        Format(COMPRESSED_FILE_FORMAT, DecompressSubcommand, CompressSubcommand, True),
-        Format(DBF_FILE_FORMAT, ExtractDBFSubcommand, CreateDBFSubcommand, False),
+        Format(
+            COMPRESSED_FILE_FORMAT,
+            DecompressSubcommand,
+            CompressSubcommand,
+            CompareMode.FILE,
+        ),
+        Format(
+            THREE_D_OBJ_DIRECTORY_FILE_FORMAT,
+            Extract3DObjSubcommand,
+            Create3DObjSubcommand,
+            CompareMode.REEXTRACT_3DO,
+        ),
+        Format(
+            DBF_FILE_FORMAT,
+            ExtractDBFSubcommand,
+            CreateDBFSubcommand,
+            CompareMode.REEXTRACT,
+        ),
         Format(
             BININFO_BIN_FILE_FORMAT,
             ExtractBininfoBinSubcommand,
             CreateBininfoBinSubcommand,
-            True,
+            CompareMode.FILE,
         ),
-        Format(NPC_FILE_FORMAT, ExtractNPCSubcommand, CreateNPCSubcommand, False),
-        Format(PCG_FILE_FORMAT, ExtractPCGSubcommand, CreatePCGSubcommand, True),
+        Format(
+            NPC_FILE_FORMAT,
+            ExtractNPCSubcommand,
+            CreateNPCSubcommand,
+            CompareMode.REEXTRACT,
+        ),
+        Format(
+            PCG_FILE_FORMAT,
+            ExtractPCGSubcommand,
+            CreatePCGSubcommand,
+            CompareMode.FILE,
+        ),
         Format(
             TEXTURES_PC_FILE_FORMAT,
             ExtractTexturesPcSubcommand,
             CreateTexturesPcSubcommand,
-            True,
+            CompareMode.FILE,
         ),
     ]
 
@@ -965,6 +1347,8 @@ class FRORValidateSubcommand(Subcommand):
         fror: Path
         verbose: bool
         formats: str
+        fror_blender_addon: Path | None
+        blender: str
 
     @classmethod
     def setup(cls, parser: argparse.ArgumentParser) -> None:
@@ -975,10 +1359,26 @@ class FRORValidateSubcommand(Subcommand):
             type=str,
             default=cls.SEPARATOR.join(map(lambda s: s.file_format.name, cls.FORMATS)),
         )
+        parser.add_argument(
+            "--fror-blender-addon",
+            type=Path,
+            default=None,
+            help="Path to fror_blender addon directory. Required for 3do format.",
+        )
+        parser.add_argument("--blender", type=str, default="blender")
 
     @classmethod
     def execute(cls, args: Args) -> None:
         formats = args.formats.split(cls.SEPARATOR)
+        selected_formats = set(formats)
+        has_3do = any(
+            format.file_compare is CompareMode.REEXTRACT_3DO
+            and format.file_format.name in selected_formats
+            for format in cls.FORMATS
+        )
+        if has_3do and args.fror_blender_addon is None:
+            raise ValueError("3do format requires --fror-blender-addon.")
+
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             for format in cls.FORMATS:
@@ -989,7 +1389,12 @@ class FRORValidateSubcommand(Subcommand):
                 for input in args.fror.glob(format.file_format.glob):
                     if args.verbose:
                         logging.debug(f"Processing input: {input}")
-                    for command in format.commands(input, tmp_path):
+                    for command in format.commands(
+                        input,
+                        tmp_path,
+                        args.fror_blender_addon,
+                        args.blender,
+                    ):
                         if args.verbose:
                             logging.debug(command)
 
@@ -1004,7 +1409,7 @@ class FRORValidateSubcommand(Subcommand):
                             or completed_process.stdout
                             or completed_process.stderr
                         ):
-                            error = f"!!! ERROR: Failed to validate {input}"
+                            error = f"!!! ERROR: Failed to validate {input}\ncommand: {command}"
                             if args.verbose:
                                 error += f"\nreturncode: {completed_process.returncode}\nstdout: {completed_process.stdout}\nstderr: {completed_process.stderr}"
                             logging.critical(error)
@@ -1019,6 +1424,8 @@ def main() -> None:
     DecompressSubcommand.pre_setup(subparsers)
     ExtractDBFSubcommand.pre_setup(subparsers)
     CreateDBFSubcommand.pre_setup(subparsers)
+    Extract3DObjSubcommand.pre_setup(subparsers)
+    Create3DObjSubcommand.pre_setup(subparsers)
     ExtractNPCSubcommand.pre_setup(subparsers)
     CreateNPCSubcommand.pre_setup(subparsers)
     ExtractPCGSubcommand.pre_setup(subparsers)
