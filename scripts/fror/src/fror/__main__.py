@@ -4,13 +4,11 @@ import contextlib
 import enum
 import logging
 import re
-import shutil
 import subprocess
 import tempfile
 import typing
 from dataclasses import dataclass
 from pathlib import Path
-from uuid import uuid4
 
 from annotated_types import Len
 from libfror.binrw import (
@@ -129,8 +127,6 @@ importer.import_fror_scene(bpy.context, Path(source_directory).resolve())
 bpy.ops.wm.save_as_mainfile(
     filepath=str(Path(blend_path).resolve()),
     check_existing=False,
-    copy=True,
-    relative_remap=False,
 )
 """
 
@@ -347,46 +343,39 @@ class Extract3DObjSubcommand(Subcommand):
             )
 
         args.blend.parent.mkdir(parents=True, exist_ok=True)
-        temp_blend_path = Path(tempfile.gettempdir()) / f"fror_x3do_{uuid4().hex}.blend"
-        temp_blend_at_path = Path(str(temp_blend_path) + "@")
-        try:
-            completed_process = _run_blender_stdin_script(
-                args.blender,
-                X3DO_BLENDER_SCRIPT,
-                [
-                    args.fror_blender_addon,
-                    args.three_d_obj_directory,
-                    temp_blend_path,
-                ],
-            )
+        completed_process = _run_blender_stdin_script(
+            args.blender,
+            X3DO_BLENDER_SCRIPT,
+            [
+                args.fror_blender_addon,
+                args.three_d_obj_directory,
+                args.blend,
+            ],
+        )
+        if args.verbose:
+            logging.debug(completed_process.args)
+            if completed_process.stdout:
+                logging.debug(f"stdout: {completed_process.stdout}")
+            if completed_process.stderr:
+                logging.debug(f"stderr: {completed_process.stderr}")
+        if completed_process.returncode != 0:
+            error = "!!! ERROR: Failed to extract 3dobj."
             if args.verbose:
-                logging.debug(completed_process.args)
-                if completed_process.stdout:
-                    logging.debug(f"stdout: {completed_process.stdout}")
-                if completed_process.stderr:
-                    logging.debug(f"stderr: {completed_process.stderr}")
-            if completed_process.returncode != 0:
-                error = "!!! ERROR: Failed to extract 3dobj."
-                if args.verbose:
-                    error += (
-                        f"\nreturncode: {completed_process.returncode}"
-                        f"\ncommand: {completed_process.args}"
-                        f"\nstdout: {completed_process.stdout}"
-                        f"\nstderr: {completed_process.stderr}"
-                    )
-                logging.critical(error)
-                raise SystemExit(completed_process.returncode)
-            if not temp_blend_path.is_file():
-                logging.critical(
-                    "!!! ERROR: Failed to extract 3dobj.\n"
-                    "Blender did not produce the expected output: "
-                    f"{temp_blend_path}"
+                error += (
+                    f"\nreturncode: {completed_process.returncode}"
+                    f"\ncommand: {completed_process.args}"
+                    f"\nstdout: {completed_process.stdout}"
+                    f"\nstderr: {completed_process.stderr}"
                 )
-                raise SystemExit(1)
-            shutil.copyfile(temp_blend_path, args.blend)
-        finally:
-            temp_blend_path.unlink(missing_ok=True)
-            temp_blend_at_path.unlink(missing_ok=True)
+            logging.critical(error)
+            raise SystemExit(completed_process.returncode)
+        if not args.blend.is_file():
+            logging.critical(
+                "!!! ERROR: Failed to extract 3dobj.\n"
+                "Blender did not produce the expected output: "
+                f"{args.blend}"
+            )
+            raise SystemExit(1)
 
 
 class Create3DObjSubcommand(Subcommand):
