@@ -16,7 +16,6 @@ class Endianness(StrEnum):
 
 T = typing.TypeVar("T", covariant=True)
 A = typing.TypeVar("A", contravariant=True)
-I = typing.TypeVar("I", contravariant=True)
 
 
 class BinRead(typing.Protocol[A]):
@@ -83,6 +82,9 @@ class BinaryReader:
     def read_s32(self, endianness: Endianness) -> int:
         return self.read_struct("i", endianness)[0]
 
+    def read_s32_args(self, args: None, endianness: Endianness) -> int:
+        return self.read_s32(endianness)
+
     def read_u32(self, endianness: Endianness) -> int:
         return self.read_struct("I", endianness)[0]
 
@@ -92,6 +94,9 @@ class BinaryReader:
     def read_s16(self, endianness: Endianness) -> int:
         return self.read_struct("h", endianness)[0]
 
+    def read_s16_args(self, args: None, endianness: Endianness) -> int:
+        return self.read_s16(endianness)
+
     def read_u16(self, endianness: Endianness) -> int:
         return self.read_struct("H", endianness)[0]
 
@@ -100,6 +105,9 @@ class BinaryReader:
 
     def read_s8(self, endianness: Endianness) -> int:
         return self.read_struct("b", endianness)[0]
+
+    def read_s8_args(self, args: None, endianness: Endianness) -> int:
+        return self.read_s8(endianness)
 
     def read_u8(self, endianness: Endianness) -> int:
         return self.read_struct("B", endianness)[0]
@@ -127,13 +135,13 @@ class BinaryReader:
 
     def read_list_iter(
         self,
-        iterable: typing.Iterable[I],
-        read_element: typing.Callable[["BinaryReader", I, Endianness], T],
+        read_element: typing.Callable[["BinaryReader", A, Endianness], T],
+        args_iterable: typing.Iterable[A],
         endianness: Endianness,
     ) -> list[T]:
         value = []
-        for i in iterable:
-            value.append(read_element(self, i, endianness))
+        for args in args_iterable:
+            value.append(read_element(self, args, endianness))
         return value
 
     def read_tuple_2(
@@ -251,6 +259,24 @@ class BinaryWriter:
     def write_u8_args(self, value: int, args: None, endianness: Endianness) -> None:
         self.write_u8(value, endianness)
 
+    def write_s8(self, value: int, endianness: Endianness) -> None:
+        self.write_struct(value, "b", endianness)
+
+    def write_s8_args(self, value: int, args: None, endianness: Endianness) -> None:
+        self.write_s8(value, endianness)
+
+    def write_u16(self, value: int, endianness: Endianness) -> None:
+        self.write_struct(value, "H", endianness)
+
+    def write_u16_args(self, value: int, args: None, endianness: Endianness) -> None:
+        self.write_u16(value, endianness)
+
+    def write_s16(self, value: int, endianness: Endianness) -> None:
+        self.write_struct(value, "h", endianness)
+
+    def write_s16_args(self, value: int, args: None, endianness: Endianness) -> None:
+        self.write_s16(value, endianness)
+
     def write_u32(self, value: int, endianness: Endianness) -> None:
         self.write_struct(value, "I", endianness)
 
@@ -266,18 +292,63 @@ class BinaryWriter:
     def write_float(self, value: float, endianness: Endianness) -> None:
         self.write_struct(value, "f", endianness)
 
-    def write_float_args(self, value: int, args: None, endianness: Endianness) -> None:
+    def write_float_args(
+        self, value: float, args: None, endianness: Endianness
+    ) -> None:
         self.write_float(value, endianness)
 
     def write_list(
         self,
-        values: list[T],
+        values: typing.Iterable[T],
         write_element: typing.Callable[["BinaryWriter", T, A, Endianness], None],
         args: A,
         endianness: Endianness,
     ) -> None:
         for value in values:
             write_element(self, value, args, endianness)
+
+    def write_list_iter(
+        self,
+        values: typing.Iterable[T],
+        write_element: typing.Callable[["BinaryWriter", T, A, Endianness], None],
+        args_iterable: typing.Iterable[A],
+        endianness: Endianness,
+    ) -> None:
+        for value, args in zip(values, args_iterable, strict=True):
+            write_element(self, value, args, endianness)
+
+    def write_tuple_2(
+        self,
+        values: tuple[T, T],
+        write_element: typing.Callable[["BinaryWriter", T, A, Endianness], None],
+        args: A,
+        endianness: Endianness,
+    ) -> None:
+        write_element(self, values[0], args, endianness)
+        write_element(self, values[1], args, endianness)
+
+    def write_tuple_3(
+        self,
+        values: tuple[T, T, T],
+        write_element: typing.Callable[["BinaryWriter", T, A, Endianness], None],
+        args: A,
+        endianness: Endianness,
+    ) -> None:
+        write_element(self, values[0], args, endianness)
+        write_element(self, values[1], args, endianness)
+        write_element(self, values[2], args, endianness)
+
+    def write_tuple_4(
+        self,
+        values: tuple[T, T, T, T],
+        write_element: typing.Callable[["BinaryWriter", T, A, Endianness], None],
+        args: A,
+        endianness: Endianness,
+    ) -> None:
+        write_element(self, values[0], args, endianness)
+        write_element(self, values[1], args, endianness)
+        write_element(self, values[2], args, endianness)
+        write_element(self, values[3], args, endianness)
 
 
 def align_to(alignment: int, value: int) -> int:

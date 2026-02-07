@@ -14,7 +14,8 @@ fn format_read_s16_float(s16 v) {
 };
 
 fn format_write_s16_float(str s) {
-    return s16(std::string::parse_float(s) * 0x800);
+    float v = std::string::parse_float(s);
+    return s16(std::math::clamp(v * 0x800, -32768.0, 32767.0));
 };
 
 using S16Float = s16 [[format_read("format_read_s16_float"), format_write("format_write_s16_float")]];
@@ -28,13 +29,7 @@ fn format_read_snorm8(s8 v) {
 
 fn format_write_snorm8(str s) {
     float v = std::string::parse_float(s);
-    if (v <= -1.0) {
-        return s8(-128);
-    }
-    if (v >= 1.0) {
-        return s8(127);
-    }
-    return s8(v * 127.0);
+    return s8(std::math::clamp(v * 127.0, -127.0, 127.0));
 };
 
 using SNorm8 = s8 [[format_read("format_read_snorm8"), format_write("format_write_snorm8")]];

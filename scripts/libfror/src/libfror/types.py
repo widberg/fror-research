@@ -40,7 +40,7 @@ THREE_D_OBJSP_PC_FILE_FORMAT = FileFormat("3dobjsp_pc", "data/**/3dobjsp.pc", Tr
 
 
 @dataclass
-class ThreeDObjsPcEntry(BinRead):
+class ThreeDObjsPcEntry(BinRead, BinWrite):
     a: list[float]
     the_first: int
     m: int
@@ -79,6 +79,32 @@ class ThreeDObjsPcEntry(BinRead):
         return ThreeDObjsPcEntry(
             a, the_first, m, n, o, p, the_second, q, r, s, t, u, v, w, x
         )
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjsPcEntry",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_list(
+            value.a, BinaryWriter.write_float_args, None, endianness
+        )
+        binary_writer.write_u16(value.the_first, endianness)
+        binary_writer.write_u16(value.m, endianness)
+        binary_writer.write_u32(value.n, endianness)
+        binary_writer.write_u32(value.o, endianness)
+        binary_writer.write_u32(value.p, endianness)
+        binary_writer.write_u16(value.the_second, endianness)
+        binary_writer.write_u16(value.q, endianness)
+        binary_writer.write_u32(value.r, endianness)
+        binary_writer.write_u32(value.s, endianness)
+        binary_writer.write_u32(value.t, endianness)
+        binary_writer.write_u32(value.u, endianness)
+        binary_writer.write_u32(value.v, endianness)
+        binary_writer.write_u32(value.w, endianness)
+        binary_writer.write_u32(value.x, endianness)
 
 
 def calculate_sum(arr: list[ThreeDObjsPcEntry]) -> int:
@@ -119,7 +145,7 @@ def calculate_size(flags: int, w: int) -> int:
 
 
 @dataclass
-class MeshDescriptor(BinRead):
+class MeshDescriptor(BinRead, BinWrite):
     flags: int
     w: int
     num_vertices: int
@@ -137,9 +163,25 @@ class MeshDescriptor(BinRead):
         data = binary_reader.read(calculate_size(flags, w) - 4 - 2 - 2 - 2)
         return MeshDescriptor(flags, w, num_vertices, num_triangle_strips, data)
 
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "MeshDescriptor",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_u32(value.flags, endianness)
+        binary_writer.write_s16(value.w, endianness)
+        binary_writer.write_u16(value.num_vertices, endianness)
+        binary_writer.write_u16(value.num_triangle_strips, endianness)
+        expected_size = calculate_size(value.flags, value.w) - 4 - 2 - 2 - 2
+        assert len(value.data) == expected_size
+        binary_writer.write(value.data)
+
 
 @dataclass
-class TriangleStrip(BinRead):
+class TriangleStrip(BinRead, BinWrite):
     indices: list[int]
 
     @classmethod
@@ -152,9 +194,22 @@ class TriangleStrip(BinRead):
         )
         return TriangleStrip(indices)
 
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "TriangleStrip",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_u16(len(value.indices), endianness)
+        binary_writer.write_list(
+            value.indices, BinaryWriter.write_u16_args, None, endianness
+        )
+
 
 @dataclass
-class TriangleStripBuffer(BinRead):
+class TriangleStripBuffer(BinRead, BinWrite):
     triangle_strips: list[TriangleStrip]
 
     @classmethod
@@ -169,6 +224,20 @@ class TriangleStripBuffer(BinRead):
             mesh_descriptor.num_triangle_strips, TriangleStrip.binread, None, endianness
         )
         return TriangleStripBuffer(triangle_strips)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "TriangleStripBuffer",
+        args: MeshDescriptor,
+        endianness: Endianness,
+    ) -> None:
+        mesh_descriptor = args
+        assert len(value.triangle_strips) == mesh_descriptor.num_triangle_strips
+        binary_writer.write_list(
+            value.triangle_strips, TriangleStrip.binwrite, None, endianness
+        )
 
     def to_triangles_cw(self) -> list[list[int]]:
         triangles: list[list[int]] = []
@@ -215,7 +284,7 @@ class TriangleStripBuffer(BinRead):
 
 
 @dataclass
-class ThreeDObjsPc(BinRead):
+class ThreeDObjsPc(BinRead, BinWrite):
     entries: list[ThreeDObjsPcEntry]
     mesh_descriptors: list[MeshDescriptor]
     triangle_strip_buffers: list[TriangleStripBuffer]
@@ -234,14 +303,46 @@ class ThreeDObjsPc(BinRead):
             sum, MeshDescriptor.binread, None, endianness
         )
         triangle_strip_buffers = binary_reader.read_list_iter(
-            mesh_descriptors, TriangleStripBuffer.binread, endianness
+            TriangleStripBuffer.binread, mesh_descriptors, endianness
         )
         return ThreeDObjsPc(entries, mesh_descriptors, triangle_strip_buffers)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjsPc",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_u32(len(value.entries), endianness)
+        binary_writer.write(b"\0" * 0xC)
+        binary_writer.write_list(
+            value.entries, ThreeDObjsPcEntry.binwrite, None, endianness
+        )
+        assert len(value.mesh_descriptors) == calculate_sum(value.entries)
+        binary_writer.write_list(
+            value.mesh_descriptors, MeshDescriptor.binwrite, None, endianness
+        )
+        assert len(value.triangle_strip_buffers) == len(value.mesh_descriptors)
+        binary_writer.write_list_iter(
+            value.triangle_strip_buffers,
+            TriangleStripBuffer.binwrite,
+            value.mesh_descriptors,
+            endianness,
+        )
 
 
 def read_s16_float(binary_reader: BinaryReader, args: None, endianness: Endianness):
     value = binary_reader.read_s16(endianness)
     return float(value) / 0x800
+
+
+def write_s16_float(
+    binary_writer: BinaryWriter, value: float, args: None, endianness: Endianness
+):
+    packed = max(-0x8000, min(0x7FFF, round(value * 0x800)))
+    binary_writer.write_s16(packed, endianness)
 
 
 def read_s8_snorm_float(
@@ -253,11 +354,25 @@ def read_s8_snorm_float(
     return float(value) / 127.0
 
 
+def write_s8_snorm_float(
+    binary_writer: BinaryWriter, value: float, args: None, endianness: Endianness
+):
+    packed = max(-127, min(127, round(value * 127.0)))
+    binary_writer.write_s8(packed, endianness)
+
+
 def read_u8_unorm_float(
     binary_reader: BinaryReader, args: None, endianness: Endianness
 ):
     value = binary_reader.read_u8(endianness)
     return float(value) / 255.0
+
+
+def write_u8_unorm_float(
+    binary_writer: BinaryWriter, value: float, args: None, endianness: Endianness
+):
+    packed = max(0, min(255, round(value * 255.0)))
+    binary_writer.write_u8(packed, endianness)
 
 
 def read_packed_normal(
@@ -270,12 +385,31 @@ def read_packed_normal(
     return (x, y, z)
 
 
+def write_packed_normal(
+    binary_writer: BinaryWriter,
+    value: tuple[float, float, float],
+    args: None,
+    endianness: Endianness,
+) -> None:
+    binary_writer.write_tuple_3(value, write_s8_snorm_float, None, endianness)
+    binary_writer.write_u8(0, endianness)
+
+
 def read_packed_color(
     binary_reader: BinaryReader, args: None, endianness: Endianness
 ) -> tuple[float, float, float, float]:
     return BinaryReader.read_tuple_4(
         binary_reader, read_u8_unorm_float, None, endianness
     )
+
+
+def write_packed_color(
+    binary_writer: BinaryWriter,
+    value: tuple[float, float, float, float],
+    args: None,
+    endianness: Endianness,
+) -> None:
+    binary_writer.write_tuple_4(value, write_u8_unorm_float, None, endianness)
 
 
 @dataclass
@@ -295,7 +429,7 @@ VERTEX_COLORS_MODE = 0x4000
 
 
 @dataclass
-class VertexBuffer(BinRead):
+class VertexBuffer(BinRead, BinWrite):
     positions: list[tuple[float, float, float]]
     normals_or_colors: VertexNormalsOrColors
     uvs: typing.Optional[list[tuple[float, float]]]
@@ -347,6 +481,63 @@ class VertexBuffer(BinRead):
             )
         return VertexBuffer(positions, normals_or_colors, uvs)
 
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "VertexBuffer",
+        args: MeshDescriptor,
+        endianness: Endianness,
+    ) -> None:
+        mesh_descriptor = args
+        num_vertices = mesh_descriptor.num_vertices
+        w = mesh_descriptor.w
+        flags = mesh_descriptor.flags
+        assert len(value.positions) == num_vertices
+        binary_writer.write_list(
+            value.positions,
+            lambda b, position, a, e: BinaryWriter.write_tuple_3(
+                b, position, BinaryWriter.write_float_args, a, e
+            ),
+            None,
+            endianness,
+        )
+
+        normals_or_colors_mode = flags & VERTEX_NORMALS_OR_COLORS_MASK
+        if normals_or_colors_mode == VERTEX_NORMALS_MODE:
+            assert isinstance(value.normals_or_colors, VertexNormals)
+            assert len(value.normals_or_colors.normals) == num_vertices
+            binary_writer.write_list(
+                value.normals_or_colors.normals,
+                write_packed_normal,
+                None,
+                endianness,
+            )
+        else:
+            assert normals_or_colors_mode == VERTEX_COLORS_MODE
+            assert isinstance(value.normals_or_colors, VertexColors)
+            assert len(value.normals_or_colors.colors) == num_vertices
+            binary_writer.write_list(
+                value.normals_or_colors.colors,
+                write_packed_color,
+                None,
+                endianness,
+            )
+
+        if w >= 0:
+            assert value.uvs is not None
+            assert len(value.uvs) == num_vertices
+            binary_writer.write_list(
+                value.uvs,
+                lambda b, uv, a, e: BinaryWriter.write_tuple_2(
+                    b, uv, write_s16_float, a, e
+                ),
+                None,
+                endianness,
+            )
+        else:
+            assert value.uvs is None
+
     def positions_z_up(self) -> list[tuple[float, float, float]]:
         return [y_up_to_z_up(position) for position in self.positions]
 
@@ -372,7 +563,7 @@ def v_down_to_v_up(uv: tuple[float, float]) -> tuple[float, float]:
 
 
 @dataclass
-class ThreeDObjspPc(BinRead):
+class ThreeDObjspPc(BinRead, BinWrite):
     vertex_buffers: list[VertexBuffer]
 
     @classmethod
@@ -384,11 +575,28 @@ class ThreeDObjspPc(BinRead):
     ) -> "ThreeDObjspPc":
         (three_d_objs_pc,) = args
         vertex_buffers = binary_reader.read_list_iter(
-            three_d_objs_pc.mesh_descriptors,
             VertexBuffer.binread,
+            three_d_objs_pc.mesh_descriptors,
             endianness,
         )
         return ThreeDObjspPc(vertex_buffers)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjspPc",
+        args: tuple[ThreeDObjsPc],
+        endianness: Endianness,
+    ) -> None:
+        (three_d_objs_pc,) = args
+        assert len(value.vertex_buffers) == len(three_d_objs_pc.mesh_descriptors)
+        binary_writer.write_list_iter(
+            value.vertex_buffers,
+            VertexBuffer.binwrite,
+            three_d_objs_pc.mesh_descriptors,
+            endianness,
+        )
 
 
 @dataclass
@@ -1261,4 +1469,30 @@ class ThreeDObjPc:
             three_d_objsp_pc,
             bininfo_bin,
             textures_pc,
+        )
+
+    def to_directory_path(self, path: Path, endianness: Endianness) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+
+        three_d_obj_db_pc_path = path / "3dobjdb.pc"
+        three_d_objs_pc_path = path / "3dobjs.pc"
+        three_d_objsp_pc_path = path / "3dobjsp.pc"
+        bininfo_bin_path = path / "bininfo.bin"
+        textures_pc_path = path / "textures.pc"
+
+        three_d_obj_db_pc_path.write_bytes(self.three_d_obj_db_pc)
+        ThreeDObjsPc.binwrite_to_path_compress(
+            three_d_objs_pc_path, self.three_d_objs_pc, None, endianness
+        )
+        ThreeDObjspPc.binwrite_to_path_compress(
+            three_d_objsp_pc_path,
+            self.three_d_objsp_pc,
+            (self.three_d_objs_pc,),
+            endianness,
+        )
+        BininfoBin.binwrite_to_path(
+            bininfo_bin_path, self.bininfo_bin, None, endianness
+        )
+        TexturesPc.binwrite_to_path_compress(
+            textures_pc_path, self.textures_pc, None, endianness
         )
