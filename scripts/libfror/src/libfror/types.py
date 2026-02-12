@@ -66,8 +66,6 @@ class ObjectThing(BinRead, BinWrite):
         args: None,
         endianness: Endianness,
     ) -> None:
-        assert 0 <= value.length <= 0xFFFF
-        assert 0 <= value.flags <= 0xFFFF
         binary_writer.write_u16(value.length, endianness)
         binary_writer.write_u16(value.flags, endianness)
         binary_writer.write_u32(value.n, endianness)
@@ -185,9 +183,6 @@ class MeshDescriptor(BinRead, BinWrite):
         args: None,
         endianness: Endianness,
     ) -> None:
-        assert -0x8000 <= value.texture_index <= 0x7FFF
-        assert 0 <= value.num_vertices <= 0xFFFF
-        assert 0 <= value.num_triangle_strips <= 0xFFFF
         binary_writer.write_u32(value.flags, endianness)
         binary_writer.write_s16(value.texture_index, endianness)
         binary_writer.write_u16(value.num_vertices, endianness)
@@ -220,7 +215,6 @@ class TriangleStrip(BinRead, BinWrite):
         endianness: Endianness,
     ) -> None:
         assert len(value.indices) <= 0xFFFF
-        assert all(0 <= index <= 0xFFFF for index in value.indices)
         binary_writer.write_u16(len(value.indices), endianness)
         binary_writer.write_list(
             value.indices, BinaryWriter.write_u16_args, None, endianness
@@ -510,7 +504,6 @@ class VertexBuffer(BinRead, BinWrite):
     ) -> None:
         mesh_descriptor = args
         num_vertices = mesh_descriptor.num_vertices
-        assert 0 <= num_vertices <= 0xFFFF
         texture_index = mesh_descriptor.texture_index
         flags = mesh_descriptor.flags
         assert len(value.positions) == num_vertices
@@ -1823,8 +1816,6 @@ class ThreeDObjDbPcEntryEntry5(BinRead, BinWrite):
         args: None,
         endianness: Endianness,
     ) -> None:
-        assert 0 <= value.b <= 0xFFFF
-        assert 0 <= value.c <= 0xFFFF
         binary_writer.write_u32(value.a, endianness)
         binary_writer.write_u16(value.b, endianness)
         binary_writer.write_u16(value.c, endianness)
@@ -2010,7 +2001,6 @@ class ThreeDObjDbPcSceneNode(BinRead, BinWrite):
             assert len(value.child_nodes) == 0
             return
 
-        assert 0 <= value.a <= 0xFFFF
         binary_writer.write_u16(value.a, endianness)
         binary_writer.write(b"\0" * 2)
         binary_writer.write_u32(value.b, endianness)
@@ -2241,8 +2231,6 @@ class ThreeDObjDbPcEntry(BinRead, BinWrite):
             endianness,
         )
 
-        assert 0 <= value.d <= 0xFFFF
-        assert 0 <= value.e <= 0xFFFF
         binary_writer.write_u32(value.c, endianness)
         binary_writer.write_u16(value.d, endianness)
         binary_writer.write(b"\0" * 2)
@@ -2290,7 +2278,6 @@ class ThreeDObjDbPcEntry3(BinRead, BinWrite):
         args: None,
         endianness: Endianness,
     ) -> None:
-        assert 0 <= value.a <= 0xFFFF
         binary_writer.write_u16(value.a, endianness)
         binary_writer.write_u8(value.b, endianness)
         binary_writer.write_u8(value.c, endianness)
