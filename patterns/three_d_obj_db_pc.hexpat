@@ -4,6 +4,12 @@ import std.sys;
 // The string "3d objects scene definitions file is corrupted" associated with the `3dobjdb.pc`
 // files implies that `3dobjdb.pc` files are 3d objects scene definitions files.
 
+u32 THREE_D_OBJ_DB_PC_SCENE_NODE_INDEX_ONLY = 0x01;
+u32 THREE_D_OBJ_DB_PC_ENTRY_FIXME_FLAG_02 = 0x02;
+u32 THREE_D_OBJ_DB_PC_ENTRY_HAS_PIVOT_DATA = 0x04;
+u32 THREE_D_OBJ_DB_PC_ENTRY_FIXME_FLAG_08 = 0x08;
+u32 THREE_D_OBJ_DB_PC_ENTRY_HAS_FLAG10_ENTRIES = 0x10;
+
 struct ThreeDObjDbPcEntryTransform {
     float floats[15];
     u32 data[23 - 15];
@@ -58,7 +64,7 @@ struct ThreeDObjDbPcSceneNodeSubObjectBinding {
 
 struct ThreeDObjDbPcSceneNode {
     u32 flags = parent.flags;
-    if (parent.flags & 0x01) {
+    if (parent.flags & THREE_D_OBJ_DB_PC_SCENE_NODE_INDEX_ONLY) {
         u32 scene_node_index;
     } else {
         u32 scene_node_index;
@@ -105,19 +111,19 @@ struct ThreeDObjDbPcEntry {
     padding[2];
     ThreeDObjDbPcEntryEntry5 entries5[num_entries5];
     u32 flags;
-    if (flags & 0x04) {
+    if (flags & THREE_D_OBJ_DB_PC_ENTRY_HAS_PIVOT_DATA) {
         u32 num_entries6;
         ThreeDObjDbPcEntryPivotData entries6[num_entries6];
     }
-    if (flags & 0x10) {
+    if (flags & THREE_D_OBJ_DB_PC_ENTRY_HAS_FLAG10_ENTRIES) {
         u32 num_entries7;
         ThreeDObjDbPcEntryFlag10Entry entries7[num_entries7];
     }
-    if (flags & 0x02) {
+    if (flags & THREE_D_OBJ_DB_PC_ENTRY_FIXME_FLAG_02) {
         // FIXME
         u32 fixme[-1];
     }
-    if (flags & 0x08) {
+    if (flags & THREE_D_OBJ_DB_PC_ENTRY_FIXME_FLAG_08) {
         // FIXME
         u32 fixme[-1];
     }

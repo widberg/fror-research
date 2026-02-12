@@ -1546,6 +1546,13 @@ class BininfoBin(BinRead, BinWrite):
         binary_writer.write_u32(size, endianness)  # size
 
 
+THREE_D_OBJ_DB_PC_SCENE_NODE_INDEX_ONLY = 0x01
+THREE_D_OBJ_DB_PC_ENTRY_FIXME_FLAG_02 = 0x02
+THREE_D_OBJ_DB_PC_ENTRY_HAS_PIVOT_DATA = 0x04
+THREE_D_OBJ_DB_PC_ENTRY_FIXME_FLAG_08 = 0x08
+THREE_D_OBJ_DB_PC_ENTRY_HAS_FLAG10_ENTRIES = 0x10
+
+
 @dataclass
 class ThreeDObjDbPcEntryTransform(BinRead, BinWrite):
     floats: list[float]
@@ -1813,7 +1820,7 @@ class ThreeDObjDbPcSceneNode(BinRead, BinWrite):
     ) -> "ThreeDObjDbPcSceneNode":
         (flags,) = args
         scene_node_index = binary_reader.read_u32(endianness)
-        if (flags & 0x01) != 0:
+        if (flags & THREE_D_OBJ_DB_PC_SCENE_NODE_INDEX_ONLY) != 0:
             return ThreeDObjDbPcSceneNode(scene_node_index, 0, 0, 0, 0, 0, 0, 0, [], [])
 
         a = binary_reader.read_u16(endianness)
@@ -1858,7 +1865,7 @@ class ThreeDObjDbPcSceneNode(BinRead, BinWrite):
     ) -> None:
         (flags,) = args
         binary_writer.write_u32(value.scene_node_index, endianness)
-        if (flags & 0x01) != 0:
+        if (flags & THREE_D_OBJ_DB_PC_SCENE_NODE_INDEX_ONLY) != 0:
             assert value.a == 0
             assert value.b == 0
             assert value.c == 0
@@ -1945,19 +1952,23 @@ class ThreeDObjDbPcEntry(BinRead, BinWrite):
         )
         flags = binary_reader.read_u32(endianness)
         entries6: list[ThreeDObjDbPcEntryPivotData] = []
-        if (flags & 0x04) != 0:
+        if (flags & THREE_D_OBJ_DB_PC_ENTRY_HAS_PIVOT_DATA) != 0:
             num_entries6 = binary_reader.read_u32(endianness)
             entries6 = binary_reader.read_list(
                 num_entries6, ThreeDObjDbPcEntryPivotData.binread, None, endianness
             )
         entries7: list[ThreeDObjDbPcEntryFlag10Entry] = []
-        if (flags & 0x10) != 0:
+        if (flags & THREE_D_OBJ_DB_PC_ENTRY_HAS_FLAG10_ENTRIES) != 0:
             num_entries7 = binary_reader.read_u32(endianness)
             entries7 = binary_reader.read_list(
                 num_entries7, ThreeDObjDbPcEntryFlag10Entry.binread, None, endianness
             )
-        assert (flags & 0x02) == 0, "Unsupported ThreeDObjDbPcEntry flag 0x02"
-        assert (flags & 0x08) == 0, "Unsupported ThreeDObjDbPcEntry flag 0x08"
+        assert (
+            flags & THREE_D_OBJ_DB_PC_ENTRY_FIXME_FLAG_02
+        ) == 0, "Unsupported ThreeDObjDbPcEntry flag FIXME_FLAG_02"
+        assert (
+            flags & THREE_D_OBJ_DB_PC_ENTRY_FIXME_FLAG_08
+        ) == 0, "Unsupported ThreeDObjDbPcEntry flag FIXME_FLAG_08"
         num_lod_switch_distances = binary_reader.read_u8(endianness)
         binary_reader.skip(3)
         lod_switch_distances = binary_reader.read_list(
@@ -2051,7 +2062,7 @@ class ThreeDObjDbPcEntry(BinRead, BinWrite):
         )
 
         binary_writer.write_u32(value.flags, endianness)
-        if (value.flags & 0x04) != 0:
+        if (value.flags & THREE_D_OBJ_DB_PC_ENTRY_HAS_PIVOT_DATA) != 0:
             binary_writer.write_u32(len(value.entries6), endianness)
             binary_writer.write_list(
                 value.entries6, ThreeDObjDbPcEntryPivotData.binwrite, None, endianness
@@ -2059,7 +2070,7 @@ class ThreeDObjDbPcEntry(BinRead, BinWrite):
         else:
             assert len(value.entries6) == 0
 
-        if (value.flags & 0x10) != 0:
+        if (value.flags & THREE_D_OBJ_DB_PC_ENTRY_HAS_FLAG10_ENTRIES) != 0:
             binary_writer.write_u32(len(value.entries7), endianness)
             binary_writer.write_list(
                 value.entries7, ThreeDObjDbPcEntryFlag10Entry.binwrite, None, endianness
@@ -2067,8 +2078,12 @@ class ThreeDObjDbPcEntry(BinRead, BinWrite):
         else:
             assert len(value.entries7) == 0
 
-        assert (value.flags & 0x02) == 0, "Unsupported ThreeDObjDbPcEntry flag 0x02"
-        assert (value.flags & 0x08) == 0, "Unsupported ThreeDObjDbPcEntry flag 0x08"
+        assert (
+            value.flags & THREE_D_OBJ_DB_PC_ENTRY_FIXME_FLAG_02
+        ) == 0, "Unsupported ThreeDObjDbPcEntry flag FIXME_FLAG_02"
+        assert (
+            value.flags & THREE_D_OBJ_DB_PC_ENTRY_FIXME_FLAG_08
+        ) == 0, "Unsupported ThreeDObjDbPcEntry flag FIXME_FLAG_08"
 
         assert len(value.lod_switch_distances) <= 0xFF
         binary_writer.write_u8(len(value.lod_switch_distances), endianness)
