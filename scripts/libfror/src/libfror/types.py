@@ -80,8 +80,7 @@ class ThreeDObjsPcEntry(BinRead, BinWrite):
     lod_far: ObjectThing
     u: int
     v: int
-    w: float
-    x: float
+    grid_translation: tuple[float, float]
 
     @classmethod
     def binread(
@@ -94,9 +93,19 @@ class ThreeDObjsPcEntry(BinRead, BinWrite):
         lod_far = ObjectThing.binread(binary_reader, None, endianness)
         u = binary_reader.read_u32(endianness)
         v = binary_reader.read_u32(endianness)
-        w = binary_reader.read_float(endianness)
-        x = binary_reader.read_float(endianness)
-        return ThreeDObjsPcEntry(transformation, lod_near, lod_far, u, v, w, x)
+        grid_translation = binary_reader.read_tuple_2(
+            BinaryReader.read_float_args,
+            None,
+            endianness,
+        )
+        return ThreeDObjsPcEntry(
+            transformation,
+            lod_near,
+            lod_far,
+            u,
+            v,
+            grid_translation,
+        )
 
     @classmethod
     def binwrite(
@@ -113,8 +122,12 @@ class ThreeDObjsPcEntry(BinRead, BinWrite):
         ObjectThing.binwrite(binary_writer, value.lod_far, None, endianness)
         binary_writer.write_u32(value.u, endianness)
         binary_writer.write_u32(value.v, endianness)
-        binary_writer.write_float(value.w, endianness)
-        binary_writer.write_float(value.x, endianness)
+        binary_writer.write_tuple_2(
+            value.grid_translation,
+            BinaryWriter.write_float_args,
+            None,
+            endianness,
+        )
 
 
 def calculate_sum(arr: list[ThreeDObjsPcEntry]) -> int:
@@ -1783,11 +1796,11 @@ class ThreeDObjDbPcEntryEntry4(BinRead, BinWrite):
 
 @dataclass
 class ThreeDObjDbPcEntryEntry5(BinRead, BinWrite):
-    a: int
-    b: int
+    scene_node_index: int
+    scene_node_group: int
     c: int
     translation: tuple[float, float, float]
-    g: float
+    yaw: float
     h: int
     i: int
 
@@ -1795,16 +1808,24 @@ class ThreeDObjDbPcEntryEntry5(BinRead, BinWrite):
     def binread(
         cls, binary_reader: BinaryReader, args: None, endianness: Endianness
     ) -> "ThreeDObjDbPcEntryEntry5":
-        a = binary_reader.read_u32(endianness)
-        b = binary_reader.read_u16(endianness)
+        scene_node_index = binary_reader.read_u32(endianness)
+        scene_node_group = binary_reader.read_u16(endianness)
         c = binary_reader.read_u16(endianness)
         translation = binary_reader.read_tuple_3(
             BinaryReader.read_float_args, None, endianness
         )
-        g = binary_reader.read_float(endianness)
+        yaw = binary_reader.read_float(endianness)
         h = binary_reader.read_u32(endianness)
         i = binary_reader.read_u32(endianness)
-        return ThreeDObjDbPcEntryEntry5(a, b, c, translation, g, h, i)
+        return ThreeDObjDbPcEntryEntry5(
+            scene_node_index,
+            scene_node_group,
+            c,
+            translation,
+            yaw,
+            h,
+            i,
+        )
 
     @classmethod
     def binwrite(
@@ -1814,13 +1835,13 @@ class ThreeDObjDbPcEntryEntry5(BinRead, BinWrite):
         args: None,
         endianness: Endianness,
     ) -> None:
-        binary_writer.write_u32(value.a, endianness)
-        binary_writer.write_u16(value.b, endianness)
+        binary_writer.write_u32(value.scene_node_index, endianness)
+        binary_writer.write_u16(value.scene_node_group, endianness)
         binary_writer.write_u16(value.c, endianness)
         binary_writer.write_tuple_3(
             value.translation, BinaryWriter.write_float_args, None, endianness
         )
-        binary_writer.write_float(value.g, endianness)
+        binary_writer.write_float(value.yaw, endianness)
         binary_writer.write_u32(value.h, endianness)
         binary_writer.write_u32(value.i, endianness)
 

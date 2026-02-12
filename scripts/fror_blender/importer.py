@@ -142,7 +142,7 @@ def _collect_scene_node_transforms_from_entries5(
 
     for entry in three_d_obj_db_pc.entries:
         for entry5 in entry.entries5:
-            scene_node_index = entry5.a
+            scene_node_index = entry5.scene_node_index
             if scene_node_index < 0 or scene_node_index >= num_scene_nodes:
                 continue
             scene_node_index = scene_node_index_aliases.get(
@@ -150,12 +150,9 @@ def _collect_scene_node_transforms_from_entries5(
                 scene_node_index,
             )
             translation = entry5.translation_z_up()
-            if entry5.b == 0xFFFF:
+            if entry5.scene_node_group == 0xFFFF:
                 scene_node_entry = three_d_objs_pc.entries[scene_node_index]
-                scene_node_grid_translation = (
-                    scene_node_entry.w,
-                    scene_node_entry.x,
-                )
+                scene_node_grid_translation = scene_node_entry.grid_translation
                 scene_node_has_meshes = (
                     scene_node_entry.lod_near.length + scene_node_entry.lod_far.length
                 ) > 0
@@ -164,7 +161,8 @@ def _collect_scene_node_transforms_from_entries5(
                     and abs(scene_node_grid_translation[1]) < 0.01
                 )
                 if scene_node_has_meshes and not scene_node_grid_translation_is_zero:
-                    # For cut-up track tables, entries5 XY can drift while 3dobjs w/x
+                    # For cut-up track tables, entries5 XY can drift while 3dobjs
+                    # grid_translation
                     # tracks the actual tile slot used by mesh-owned scene nodes.
                     translation = (
                         scene_node_grid_translation[0],
@@ -223,8 +221,8 @@ def _collect_scene_node_transforms_from_entries5(
                         translation[2],
                     )
                 scene_node_baseline_z_samples.append(translation[2])
-            yaw = entry5.g
-            scene_node_transform = (translation, yaw, entry5.b)
+            yaw = entry5.yaw
+            scene_node_transform = (translation, yaw, entry5.scene_node_group)
             candidates = scene_node_transform_candidates.setdefault(scene_node_index, [])
             if scene_node_transform not in candidates:
                 candidates.append(scene_node_transform)

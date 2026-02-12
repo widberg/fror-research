@@ -9,6 +9,11 @@ struct Vec3f {
     float z;
 };
 
+struct Vec2f {
+    float x;
+    float y;
+};
+
 fn format_read_s16_float(s16 v) {
     return float(v) / 0x800;
 };

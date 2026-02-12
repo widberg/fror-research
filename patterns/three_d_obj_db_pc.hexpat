@@ -29,11 +29,11 @@ struct ThreeDObjDbPcEntryEntry4 {
 };
 
 struct ThreeDObjDbPcEntryEntry5 {
-    u32 a;
-    u16 b;
+    u32 scene_node_index;
+    u16 scene_node_group;
     u16 c;
     Vec3f translation;
-    float g;
+    float yaw;
     u32 h;
     u32 i;
     if (false) { // FIXME: Some functon argument controls this

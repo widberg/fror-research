@@ -22,8 +22,7 @@ struct Object {
     std::assert(u == 0, "u != 0");
     u32 v;
     std::assert(v == 0, "v != 0");
-    float w;
-    float x;
+    Vec2f grid_translation;
 };
 
 fn calculate_sum(auto arr) {
