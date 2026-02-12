@@ -178,8 +178,23 @@ def _collect_scene_node_transforms_from_entries5(
                     _u32_to_float(scene_node_entry.w),
                     _u32_to_float(scene_node_entry.x),
                 )
-                # Some cut-up track pieces are one 64-unit cell behind on X in entries5.
-                if (
+                scene_node_has_meshes = (
+                    scene_node_entry.lod_near.length + scene_node_entry.lod_far.length
+                ) > 0
+                scene_node_grid_location_is_zero = (
+                    abs(scene_node_grid_location[0]) < 0.01
+                    and abs(scene_node_grid_location[1]) < 0.01
+                )
+                if scene_node_has_meshes and not scene_node_grid_location_is_zero:
+                    # For cut-up track tables, entries5 XY can drift while 3dobjs w/x
+                    # tracks the actual tile slot used by mesh-owned scene nodes.
+                    location = (
+                        scene_node_grid_location[0],
+                        scene_node_grid_location[1],
+                        location[2],
+                    )
+                # Fallback seam corrections for odd placeholder cases.
+                elif (
                     abs((scene_node_grid_location[0] - location[0]) - 64.0) < 0.01
                     and abs(scene_node_grid_location[1] - location[1]) < 0.01
                 ):
@@ -188,7 +203,6 @@ def _collect_scene_node_transforms_from_entries5(
                         scene_node_grid_location[1],
                         location[2],
                     )
-                # Some row-wrap cut-up entries jump +64 on Y and back multiple X cells.
                 elif (
                     abs((scene_node_grid_location[1] - location[1]) - 64.0) < 0.01
                     and (location[0] - scene_node_grid_location[0]) >= (128.0 - 0.01)
@@ -199,7 +213,6 @@ def _collect_scene_node_transforms_from_entries5(
                         scene_node_grid_location[1],
                         location[2],
                     )
-                # Symmetric seam case where entries5 is one 64-unit cell ahead on X.
                 elif (
                     abs((scene_node_grid_location[0] - location[0]) + 64.0) < 0.01
                     and abs(scene_node_grid_location[1] - location[1]) < 0.01
@@ -209,7 +222,6 @@ def _collect_scene_node_transforms_from_entries5(
                         scene_node_grid_location[1],
                         location[2],
                     )
-                # Symmetric row-wrap case with -64 on Y and multi-cell forward X.
                 elif (
                     abs((scene_node_grid_location[1] - location[1]) + 64.0) < 0.01
                     and (scene_node_grid_location[0] - location[0]) >= (128.0 - 0.01)
