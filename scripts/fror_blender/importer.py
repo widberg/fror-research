@@ -139,6 +139,7 @@ def _build_scene_node_index_aliases(
 
 def _collect_scene_node_transforms_from_entries5(
     three_d_obj_db_pc: ThreeDObjDbPc,
+    three_d_objs_pc: ThreeDObjsPc,
     num_scene_nodes: int,
 ) -> tuple[
     dict[int, tuple[float, float, float]],
@@ -171,6 +172,54 @@ def _collect_scene_node_transforms_from_entries5(
                     _u32_to_float(entry5.f),
                 )
             )
+            if entry5.b == 0xFFFF:
+                scene_node_entry = three_d_objs_pc.entries[scene_node_index]
+                scene_node_grid_location = (
+                    _u32_to_float(scene_node_entry.w),
+                    _u32_to_float(scene_node_entry.x),
+                )
+                # Some cut-up track pieces are one 64-unit cell behind on X in entries5.
+                if (
+                    abs((scene_node_grid_location[0] - location[0]) - 64.0) < 0.01
+                    and abs(scene_node_grid_location[1] - location[1]) < 0.01
+                ):
+                    location = (
+                        scene_node_grid_location[0],
+                        scene_node_grid_location[1],
+                        location[2],
+                    )
+                # Some row-wrap cut-up entries jump +64 on Y and back multiple X cells.
+                elif (
+                    abs((scene_node_grid_location[1] - location[1]) - 64.0) < 0.01
+                    and (location[0] - scene_node_grid_location[0]) >= (128.0 - 0.01)
+                    and abs((location[0] - scene_node_grid_location[0]) % 64.0) < 0.01
+                ):
+                    location = (
+                        scene_node_grid_location[0],
+                        scene_node_grid_location[1],
+                        location[2],
+                    )
+                # Symmetric seam case where entries5 is one 64-unit cell ahead on X.
+                elif (
+                    abs((scene_node_grid_location[0] - location[0]) + 64.0) < 0.01
+                    and abs(scene_node_grid_location[1] - location[1]) < 0.01
+                ):
+                    location = (
+                        scene_node_grid_location[0],
+                        scene_node_grid_location[1],
+                        location[2],
+                    )
+                # Symmetric row-wrap case with -64 on Y and multi-cell forward X.
+                elif (
+                    abs((scene_node_grid_location[1] - location[1]) + 64.0) < 0.01
+                    and (scene_node_grid_location[0] - location[0]) >= (128.0 - 0.01)
+                    and abs((scene_node_grid_location[0] - location[0]) % 64.0) < 0.01
+                ):
+                    location = (
+                        scene_node_grid_location[0],
+                        scene_node_grid_location[1],
+                        location[2],
+                    )
             if entry5.b == 0xFFFF:
                 scene_node_baseline_z_samples.append(location[2])
             yaw = _u32_to_float(entry5.g)
@@ -508,6 +557,7 @@ def import_fror_scene(
     ) = (
         _collect_scene_node_transforms_from_entries5(
             three_d_obj_pc.three_d_obj_db_pc,
+            three_d_objs_pc,
             len(three_d_objs_pc.entries),
         )
     )
