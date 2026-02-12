@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import bpy
+from mathutils import Matrix
 from bpy.types import Operator
 from bpy_extras.io_utils import ImportHelper
 
@@ -139,7 +140,12 @@ def _build_scene_node_index_aliases(
 def _collect_scene_node_transforms_from_entries5(
     three_d_obj_db_pc: ThreeDObjDbPc,
     num_scene_nodes: int,
-) -> tuple[dict[int, tuple[float, float, float]], dict[int, float]]:
+) -> tuple[
+    dict[int, tuple[float, float, float]],
+    dict[int, float],
+    dict[int, int],
+    float | None,
+]:
     scene_node_transform_candidates: dict[
         int, list[tuple[tuple[float, float, float], float, int]]
     ] = {}
@@ -179,6 +185,7 @@ def _collect_scene_node_transforms_from_entries5(
 
     scene_node_locations: dict[int, tuple[float, float, float]] = {}
     scene_node_yaws: dict[int, float] = {}
+    scene_node_groups: dict[int, int] = {}
     for scene_node_index, candidates in scene_node_transform_candidates.items():
         preferred_candidates = [
             (location, yaw, b) for location, yaw, b in candidates if b != 0xFFFF
@@ -193,13 +200,20 @@ def _collect_scene_node_transforms_from_entries5(
                 )
             scene_node_locations[scene_node_index] = scene_node_location
             scene_node_yaws[scene_node_index] = scene_node_yaw
+            scene_node_groups[scene_node_index] = scene_node_group
             continue
         if len(candidates) == 1:
-            scene_node_location, scene_node_yaw, _ = candidates[0]
+            scene_node_location, scene_node_yaw, scene_node_group = candidates[0]
             scene_node_locations[scene_node_index] = scene_node_location
             scene_node_yaws[scene_node_index] = scene_node_yaw
+            scene_node_groups[scene_node_index] = scene_node_group
 
-    return scene_node_locations, scene_node_yaws
+    return (
+        scene_node_locations,
+        scene_node_yaws,
+        scene_node_groups,
+        scene_node_baseline_z,
+    )
 
 
 def _collect_scene_node_labels(
@@ -489,6 +503,8 @@ def import_fror_scene(
     (
         scene_node_locations_from_entries5,
         scene_node_yaws_from_entries5,
+        scene_node_groups_from_entries5,
+        scene_node_baseline_z_from_entries5,
     ) = (
         _collect_scene_node_transforms_from_entries5(
             three_d_obj_pc.three_d_obj_db_pc,
@@ -502,6 +518,23 @@ def import_fror_scene(
         three_d_obj_pc.bininfo_bin,
         len(three_d_objs_pc.entries),
     )
+    if scene_node_baseline_z_from_entries5 is not None:
+        for scene_node_index, scene_node_group in scene_node_groups_from_entries5.items():
+            if scene_node_group != 2:
+                continue
+            scene_node_label = scene_node_labels.get(scene_node_index)
+            if scene_node_label is None:
+                continue
+            if "OVERLAY" not in scene_node_label.upper():
+                continue
+            scene_node_location = scene_node_locations.get(scene_node_index)
+            if scene_node_location is None:
+                continue
+            scene_node_locations[scene_node_index] = (
+                scene_node_location[0],
+                scene_node_location[1],
+                scene_node_location[2] + scene_node_baseline_z_from_entries5,
+            )
     scene_node_objects = _create_scene_node_objects(
         target_collection,
         len(three_d_objs_pc.entries),
@@ -536,6 +569,15 @@ def import_fror_scene(
         target_collection.objects.link(obj)
         if scene_node_index is not None:
             obj.parent = scene_node_objects[scene_node_index]
+            scene_node_group = scene_node_groups_from_entries5.get(scene_node_index)
+            scene_node_label = scene_node_labels.get(scene_node_index)
+            if (
+                scene_node_group == 2
+                and scene_node_label is not None
+                and "OVERLAY" in scene_node_label.upper()
+            ):
+                # Overlays are local decals and should follow the scene-node transform.
+                obj.matrix_parent_inverse = Matrix.Identity(4)
 
         vertices = vertex_buffer_z_up_v_up.positions
         edges: list[tuple[int, int]] = []
