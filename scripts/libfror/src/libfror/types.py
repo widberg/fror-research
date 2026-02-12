@@ -982,6 +982,139 @@ class PCG(BinRead, BinWrite):
         )
 
 
+@dataclass
+class PVSVisibleSectorRecord(BinRead, BinWrite):
+    visible_sector_x: int
+    visible_sector_z: int
+    packed_delta_x: int
+    packed_delta_z: int
+    visibility_flags: int
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "PVSVisibleSectorRecord":
+        visible_sector_x = binary_reader.read_u8(endianness)
+        visible_sector_z = binary_reader.read_u8(endianness)
+        packed_delta_x = binary_reader.read_s8(endianness)
+        packed_delta_z = binary_reader.read_s8(endianness)
+        visibility_flags = binary_reader.read_u8(endianness)
+        return PVSVisibleSectorRecord(
+            visible_sector_x,
+            visible_sector_z,
+            packed_delta_x,
+            packed_delta_z,
+            visibility_flags,
+        )
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "PVSVisibleSectorRecord",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_u8(value.visible_sector_x, endianness)
+        binary_writer.write_u8(value.visible_sector_z, endianness)
+        binary_writer.write_s8(value.packed_delta_x, endianness)
+        binary_writer.write_s8(value.packed_delta_z, endianness)
+        binary_writer.write_u8(value.visibility_flags, endianness)
+
+
+@dataclass
+class PVSSectorEntry(BinRead, BinWrite):
+    sector_x: int
+    sector_z: int
+    sector_class: int
+    reserved_metadata: bytes
+    visible_sectors: list[PVSVisibleSectorRecord]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "PVSSectorEntry":
+        sector_x = binary_reader.read_u32(endianness)
+        sector_z = binary_reader.read_u32(endianness)
+        sector_class = binary_reader.read_u32(endianness)
+        reserved_metadata = binary_reader.read(0x1C)
+        num_visible_sectors = binary_reader.read_u32(endianness)
+        visible_sectors = binary_reader.read_list(
+            num_visible_sectors, PVSVisibleSectorRecord.binread, None, endianness
+        )
+        alignment_padding = align_to(4, binary_reader.tell()) - binary_reader.tell()
+        binary_reader.skip(alignment_padding)
+        return PVSSectorEntry(
+            sector_x,
+            sector_z,
+            sector_class,
+            reserved_metadata,
+            visible_sectors,
+        )
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "PVSSectorEntry",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert len(value.reserved_metadata) == 0x1C
+        binary_writer.write_u32(value.sector_x, endianness)
+        binary_writer.write_u32(value.sector_z, endianness)
+        binary_writer.write_u32(value.sector_class, endianness)
+        binary_writer.write(value.reserved_metadata)
+        binary_writer.write_u32(len(value.visible_sectors), endianness)
+        binary_writer.write_list(
+            value.visible_sectors, PVSVisibleSectorRecord.binwrite, None, endianness
+        )
+        alignment_padding = align_to(4, binary_writer.tell()) - binary_writer.tell()
+        binary_writer.write(b"\0" * alignment_padding)
+
+
+@dataclass
+class PVS(BinRead, BinWrite):
+    total_visible_sector_records: int
+    sector_entries: list[PVSSectorEntry]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "PVS":
+        num_sector_entries = binary_reader.read_u32(endianness)
+        total_visible_sector_records = binary_reader.read_u32(endianness)
+        sector_entries = binary_reader.read_list(
+            num_sector_entries, PVSSectorEntry.binread, None, endianness
+        )
+        expected_total_visible_sector_records = sum(
+            len(sector_entry.visible_sectors) for sector_entry in sector_entries
+        )
+        assert total_visible_sector_records == expected_total_visible_sector_records
+        return PVS(total_visible_sector_records, sector_entries)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "PVS",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        expected_total_visible_sector_records = sum(
+            len(sector_entry.visible_sectors) for sector_entry in value.sector_entries
+        )
+        assert (
+            value.total_visible_sector_records
+            == expected_total_visible_sector_records
+        )
+        binary_writer.write_u32(len(value.sector_entries), endianness)
+        binary_writer.write_u32(value.total_visible_sector_records, endianness)
+        binary_writer.write_list(
+            value.sector_entries, PVSSectorEntry.binwrite, None, endianness
+        )
+
+
 class BytesEnum(bytes, ReprEnum):
     def __new__(cls, value: bytes) -> "BytesEnum":
         if not isinstance(value, (bytes,)):
