@@ -1,4 +1,5 @@
 import struct
+from statistics import median
 from pathlib import Path
 from uuid import uuid4
 
@@ -142,6 +143,7 @@ def _collect_scene_node_transforms_from_entries5(
     scene_node_transform_candidates: dict[
         int, list[tuple[tuple[float, float, float], float, int]]
     ] = {}
+    scene_node_baseline_z_samples: list[float] = []
     scene_node_index_aliases = _build_scene_node_index_aliases(
         three_d_obj_db_pc,
         num_scene_nodes,
@@ -163,20 +165,32 @@ def _collect_scene_node_transforms_from_entries5(
                     _u32_to_float(entry5.f),
                 )
             )
+            if entry5.b == 0xFFFF:
+                scene_node_baseline_z_samples.append(location[2])
             yaw = _u32_to_float(entry5.g)
             scene_node_transform = (location, yaw, entry5.b)
             candidates = scene_node_transform_candidates.setdefault(scene_node_index, [])
             if scene_node_transform not in candidates:
                 candidates.append(scene_node_transform)
 
+    scene_node_baseline_z: float | None = None
+    if len(scene_node_baseline_z_samples) > 0:
+        scene_node_baseline_z = median(scene_node_baseline_z_samples)
+
     scene_node_locations: dict[int, tuple[float, float, float]] = {}
     scene_node_yaws: dict[int, float] = {}
     for scene_node_index, candidates in scene_node_transform_candidates.items():
         preferred_candidates = [
-            (location, yaw) for location, yaw, b in candidates if b != 0xFFFF
+            (location, yaw, b) for location, yaw, b in candidates if b != 0xFFFF
         ]
         if len(preferred_candidates) == 1:
-            scene_node_location, scene_node_yaw = preferred_candidates[0]
+            scene_node_location, scene_node_yaw, scene_node_group = preferred_candidates[0]
+            if scene_node_baseline_z is not None and scene_node_group in (0, 1):
+                scene_node_location = (
+                    scene_node_location[0],
+                    scene_node_location[1],
+                    scene_node_location[2] + scene_node_baseline_z,
+                )
             scene_node_locations[scene_node_index] = scene_node_location
             scene_node_yaws[scene_node_index] = scene_node_yaw
             continue
@@ -472,7 +486,10 @@ def import_fror_scene(
     scene_node_locations, scene_node_parents = _collect_scene_node_hierarchy(
         three_d_obj_pc.three_d_obj_db_pc
     )
-    scene_node_locations_from_entries5, scene_node_yaws_from_entries5 = (
+    (
+        scene_node_locations_from_entries5,
+        scene_node_yaws_from_entries5,
+    ) = (
         _collect_scene_node_transforms_from_entries5(
             three_d_obj_pc.three_d_obj_db_pc,
             len(three_d_objs_pc.entries),
