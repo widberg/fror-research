@@ -114,6 +114,80 @@ def _collect_scene_node_hierarchy(
     return scene_node_locations, scene_node_parents
 
 
+def _build_scene_node_index_aliases(
+    three_d_obj_db_pc: ThreeDObjDbPc,
+    num_scene_nodes: int,
+) -> dict[int, int]:
+    scene_node_index_aliases: dict[int, int] = {}
+    num_entries = len(three_d_obj_db_pc.entries)
+    for entry_index in range(min(num_entries, num_scene_nodes)):
+        entry = three_d_obj_db_pc.entries[entry_index]
+        if (entry.flags & THREE_D_OBJ_DB_PC_SCENE_NODE_INDEX_ONLY) == 0:
+            continue
+        if len(entry.root_scene_nodes) == 0:
+            continue
+        aliased_scene_node_index = entry.root_scene_nodes[0].scene_node_index
+        if aliased_scene_node_index < 0 or aliased_scene_node_index >= num_scene_nodes:
+            continue
+        if aliased_scene_node_index == entry_index:
+            continue
+        scene_node_index_aliases[entry_index] = aliased_scene_node_index
+    return scene_node_index_aliases
+
+
+def _collect_scene_node_transforms_from_entries5(
+    three_d_obj_db_pc: ThreeDObjDbPc,
+    num_scene_nodes: int,
+) -> tuple[dict[int, tuple[float, float, float]], dict[int, float]]:
+    scene_node_transform_candidates: dict[
+        int, list[tuple[tuple[float, float, float], float, int]]
+    ] = {}
+    scene_node_index_aliases = _build_scene_node_index_aliases(
+        three_d_obj_db_pc,
+        num_scene_nodes,
+    )
+
+    for entry in three_d_obj_db_pc.entries:
+        for entry5 in entry.entries5:
+            scene_node_index = entry5.a
+            if scene_node_index < 0 or scene_node_index >= num_scene_nodes:
+                continue
+            scene_node_index = scene_node_index_aliases.get(
+                scene_node_index,
+                scene_node_index,
+            )
+            location = y_up_to_z_up(
+                (
+                    entry5.d,
+                    _u32_to_float(entry5.e),
+                    _u32_to_float(entry5.f),
+                )
+            )
+            yaw = _u32_to_float(entry5.g)
+            scene_node_transform = (location, yaw, entry5.b)
+            candidates = scene_node_transform_candidates.setdefault(scene_node_index, [])
+            if scene_node_transform not in candidates:
+                candidates.append(scene_node_transform)
+
+    scene_node_locations: dict[int, tuple[float, float, float]] = {}
+    scene_node_yaws: dict[int, float] = {}
+    for scene_node_index, candidates in scene_node_transform_candidates.items():
+        preferred_candidates = [
+            (location, yaw) for location, yaw, b in candidates if b != 0xFFFF
+        ]
+        if len(preferred_candidates) == 1:
+            scene_node_location, scene_node_yaw = preferred_candidates[0]
+            scene_node_locations[scene_node_index] = scene_node_location
+            scene_node_yaws[scene_node_index] = scene_node_yaw
+            continue
+        if len(candidates) == 1:
+            scene_node_location, scene_node_yaw, _ = candidates[0]
+            scene_node_locations[scene_node_index] = scene_node_location
+            scene_node_yaws[scene_node_index] = scene_node_yaw
+
+    return scene_node_locations, scene_node_yaws
+
+
 def _collect_scene_node_labels(
     three_d_obj_db_pc: ThreeDObjDbPc,
     bininfo_bin: BininfoBin,
@@ -210,6 +284,7 @@ def _create_scene_node_objects(
     target_collection: bpy.types.Collection,
     num_scene_nodes: int,
     scene_node_locations: dict[int, tuple[float, float, float]],
+    scene_node_yaws: dict[int, float],
     scene_node_parents: dict[int, int],
     scene_node_labels: dict[int, str],
 ) -> list[bpy.types.Object]:
@@ -227,6 +302,9 @@ def _create_scene_node_objects(
         scene_node_location = scene_node_locations.get(scene_node_index)
         if scene_node_location is not None:
             scene_node_obj.location = scene_node_location
+        scene_node_yaw = scene_node_yaws.get(scene_node_index)
+        if scene_node_yaw is not None and scene_node_yaw != 0:
+            scene_node_obj.rotation_euler[2] = scene_node_yaw
 
         target_collection.objects.link(scene_node_obj)
         scene_node_objects.append(scene_node_obj)
@@ -394,6 +472,14 @@ def import_fror_scene(
     scene_node_locations, scene_node_parents = _collect_scene_node_hierarchy(
         three_d_obj_pc.three_d_obj_db_pc
     )
+    scene_node_locations_from_entries5, scene_node_yaws_from_entries5 = (
+        _collect_scene_node_transforms_from_entries5(
+            three_d_obj_pc.three_d_obj_db_pc,
+            len(three_d_objs_pc.entries),
+        )
+    )
+    for scene_node_index, scene_node_location in scene_node_locations_from_entries5.items():
+        scene_node_locations[scene_node_index] = scene_node_location
     scene_node_labels = _collect_scene_node_labels(
         three_d_obj_pc.three_d_obj_db_pc,
         three_d_obj_pc.bininfo_bin,
@@ -403,6 +489,7 @@ def import_fror_scene(
         target_collection,
         len(three_d_objs_pc.entries),
         scene_node_locations,
+        scene_node_yaws_from_entries5,
         scene_node_parents,
         scene_node_labels,
     )
