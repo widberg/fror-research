@@ -22,8 +22,8 @@ struct Object {
     std::assert(u == 0, "u != 0");
     u32 v;
     std::assert(v == 0, "v != 0");
-    u32 w;
-    u32 x;
+    float w;
+    float x;
 };
 
 fn calculate_sum(auto arr) {

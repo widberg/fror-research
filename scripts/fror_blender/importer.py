@@ -1,4 +1,3 @@
-import struct
 from statistics import median
 from pathlib import Path
 from uuid import uuid4
@@ -33,10 +32,6 @@ MESH_INDEX_PROP = "fror_mesh_index"
 SCENE_NODE_INDEX_PROP = "fror_scene_node_index"
 
 
-def _u32_to_float(value: int) -> float:
-    return struct.unpack("<f", struct.pack("<I", value))[0]
-
-
 def _safe_indexed_name(names: list[str], index: int) -> str | None:
     if 0 <= index < len(names):
         return names[index]
@@ -48,17 +43,6 @@ def _name_suffix(name: str) -> str:
     for char in "\\/:*?\"<>|\r\n\t":
         sanitized = sanitized.replace(char, "_")
     return sanitized
-
-
-def _scene_node_translation_z_up(
-    scene_node: ThreeDObjDbPcSceneNode,
-) -> tuple[float, float, float]:
-    translation_y_up = (
-        _u32_to_float(scene_node.b),
-        _u32_to_float(scene_node.c),
-        _u32_to_float(scene_node.d),
-    )
-    return y_up_to_z_up(translation_y_up)
 
 
 def _mesh_indices_to_scene_node_indices(
@@ -85,7 +69,7 @@ def _mesh_indices_to_scene_node_indices(
 def _collect_scene_node_hierarchy(
     three_d_obj_db_pc: ThreeDObjDbPc,
 ) -> tuple[dict[int, tuple[float, float, float]], dict[int, int]]:
-    scene_node_locations: dict[int, tuple[float, float, float]] = {}
+    scene_node_translations: dict[int, tuple[float, float, float]] = {}
     scene_node_parents: dict[int, int] = {}
 
     def visit_scene_node(
@@ -101,9 +85,9 @@ def _collect_scene_node_hierarchy(
         if (flags & THREE_D_OBJ_DB_PC_SCENE_NODE_INDEX_ONLY) != 0:
             return
 
-        scene_node_locations.setdefault(
+        scene_node_translations.setdefault(
             scene_node_index,
-            _scene_node_translation_z_up(scene_node),
+            scene_node.translation_z_up(),
         )
 
         for child_node in scene_node.child_nodes:
@@ -113,7 +97,7 @@ def _collect_scene_node_hierarchy(
         for root_scene_node in entry.root_scene_nodes:
             visit_scene_node(root_scene_node, entry.flags, None)
 
-    return scene_node_locations, scene_node_parents
+    return scene_node_translations, scene_node_parents
 
 
 def _build_scene_node_index_aliases(
@@ -165,77 +149,82 @@ def _collect_scene_node_transforms_from_entries5(
                 scene_node_index,
                 scene_node_index,
             )
-            location = y_up_to_z_up(
-                (
-                    entry5.d,
-                    _u32_to_float(entry5.e),
-                    _u32_to_float(entry5.f),
-                )
-            )
+            translation = entry5.translation_z_up()
             if entry5.b == 0xFFFF:
                 scene_node_entry = three_d_objs_pc.entries[scene_node_index]
-                scene_node_grid_location = (
-                    _u32_to_float(scene_node_entry.w),
-                    _u32_to_float(scene_node_entry.x),
+                scene_node_grid_translation = (
+                    scene_node_entry.w,
+                    scene_node_entry.x,
                 )
                 scene_node_has_meshes = (
                     scene_node_entry.lod_near.length + scene_node_entry.lod_far.length
                 ) > 0
-                scene_node_grid_location_is_zero = (
-                    abs(scene_node_grid_location[0]) < 0.01
-                    and abs(scene_node_grid_location[1]) < 0.01
+                scene_node_grid_translation_is_zero = (
+                    abs(scene_node_grid_translation[0]) < 0.01
+                    and abs(scene_node_grid_translation[1]) < 0.01
                 )
-                if scene_node_has_meshes and not scene_node_grid_location_is_zero:
+                if scene_node_has_meshes and not scene_node_grid_translation_is_zero:
                     # For cut-up track tables, entries5 XY can drift while 3dobjs w/x
                     # tracks the actual tile slot used by mesh-owned scene nodes.
-                    location = (
-                        scene_node_grid_location[0],
-                        scene_node_grid_location[1],
-                        location[2],
+                    translation = (
+                        scene_node_grid_translation[0],
+                        scene_node_grid_translation[1],
+                        translation[2],
                     )
                 # Fallback seam corrections for odd placeholder cases.
                 elif (
-                    abs((scene_node_grid_location[0] - location[0]) - 64.0) < 0.01
-                    and abs(scene_node_grid_location[1] - location[1]) < 0.01
+                    abs((scene_node_grid_translation[0] - translation[0]) - 64.0)
+                    < 0.01
+                    and abs(scene_node_grid_translation[1] - translation[1]) < 0.01
                 ):
-                    location = (
-                        scene_node_grid_location[0],
-                        scene_node_grid_location[1],
-                        location[2],
+                    translation = (
+                        scene_node_grid_translation[0],
+                        scene_node_grid_translation[1],
+                        translation[2],
                     )
                 elif (
-                    abs((scene_node_grid_location[1] - location[1]) - 64.0) < 0.01
-                    and (location[0] - scene_node_grid_location[0]) >= (128.0 - 0.01)
-                    and abs((location[0] - scene_node_grid_location[0]) % 64.0) < 0.01
+                    abs((scene_node_grid_translation[1] - translation[1]) - 64.0)
+                    < 0.01
+                    and (translation[0] - scene_node_grid_translation[0])
+                    >= (128.0 - 0.01)
+                    and abs(
+                        (translation[0] - scene_node_grid_translation[0]) % 64.0
+                    )
+                    < 0.01
                 ):
-                    location = (
-                        scene_node_grid_location[0],
-                        scene_node_grid_location[1],
-                        location[2],
+                    translation = (
+                        scene_node_grid_translation[0],
+                        scene_node_grid_translation[1],
+                        translation[2],
                     )
                 elif (
-                    abs((scene_node_grid_location[0] - location[0]) + 64.0) < 0.01
-                    and abs(scene_node_grid_location[1] - location[1]) < 0.01
+                    abs((scene_node_grid_translation[0] - translation[0]) + 64.0)
+                    < 0.01
+                    and abs(scene_node_grid_translation[1] - translation[1]) < 0.01
                 ):
-                    location = (
-                        scene_node_grid_location[0],
-                        scene_node_grid_location[1],
-                        location[2],
+                    translation = (
+                        scene_node_grid_translation[0],
+                        scene_node_grid_translation[1],
+                        translation[2],
                     )
                 elif (
-                    abs((scene_node_grid_location[1] - location[1]) + 64.0) < 0.01
-                    and (scene_node_grid_location[0] - location[0]) >= (128.0 - 0.01)
-                    and abs((scene_node_grid_location[0] - location[0]) % 64.0) < 0.01
-                ):
-                    location = (
-                        scene_node_grid_location[0],
-                        scene_node_grid_location[1],
-                        location[2],
+                    abs((scene_node_grid_translation[1] - translation[1]) + 64.0)
+                    < 0.01
+                    and (scene_node_grid_translation[0] - translation[0])
+                    >= (128.0 - 0.01)
+                    and abs(
+                        (scene_node_grid_translation[0] - translation[0]) % 64.0
                     )
-            if entry5.b == 0xFFFF:
-                scene_node_baseline_z_samples.append(location[2])
-            yaw = _u32_to_float(entry5.g)
-            scene_node_transform = (location, yaw, entry5.b)
+                    < 0.01
+                ):
+                    translation = (
+                        scene_node_grid_translation[0],
+                        scene_node_grid_translation[1],
+                        translation[2],
+                    )
+                scene_node_baseline_z_samples.append(translation[2])
+            yaw = entry5.g
+            scene_node_transform = (translation, yaw, entry5.b)
             candidates = scene_node_transform_candidates.setdefault(scene_node_index, [])
             if scene_node_transform not in candidates:
                 candidates.append(scene_node_transform)
@@ -244,33 +233,43 @@ def _collect_scene_node_transforms_from_entries5(
     if len(scene_node_baseline_z_samples) > 0:
         scene_node_baseline_z = median(scene_node_baseline_z_samples)
 
-    scene_node_locations: dict[int, tuple[float, float, float]] = {}
+    scene_node_translations: dict[int, tuple[float, float, float]] = {}
     scene_node_yaws: dict[int, float] = {}
     scene_node_groups: dict[int, int] = {}
     for scene_node_index, candidates in scene_node_transform_candidates.items():
         preferred_candidates = [
-            (location, yaw, b) for location, yaw, b in candidates if b != 0xFFFF
+            (translation, yaw, b)
+            for translation, yaw, b in candidates
+            if b != 0xFFFF
         ]
         if len(preferred_candidates) == 1:
-            scene_node_location, scene_node_yaw, scene_node_group = preferred_candidates[0]
+            (
+                scene_node_translation,
+                scene_node_yaw,
+                scene_node_group,
+            ) = preferred_candidates[0]
             if scene_node_baseline_z is not None and scene_node_group in (0, 1):
-                scene_node_location = (
-                    scene_node_location[0],
-                    scene_node_location[1],
-                    scene_node_location[2] + scene_node_baseline_z,
+                scene_node_translation = (
+                    scene_node_translation[0],
+                    scene_node_translation[1],
+                    scene_node_translation[2] + scene_node_baseline_z,
                 )
-            scene_node_locations[scene_node_index] = scene_node_location
+            scene_node_translations[scene_node_index] = scene_node_translation
             scene_node_yaws[scene_node_index] = scene_node_yaw
             scene_node_groups[scene_node_index] = scene_node_group
             continue
         if len(candidates) == 1:
-            scene_node_location, scene_node_yaw, scene_node_group = candidates[0]
-            scene_node_locations[scene_node_index] = scene_node_location
+            (
+                scene_node_translation,
+                scene_node_yaw,
+                scene_node_group,
+            ) = candidates[0]
+            scene_node_translations[scene_node_index] = scene_node_translation
             scene_node_yaws[scene_node_index] = scene_node_yaw
             scene_node_groups[scene_node_index] = scene_node_group
 
     return (
-        scene_node_locations,
+        scene_node_translations,
         scene_node_yaws,
         scene_node_groups,
         scene_node_baseline_z,
@@ -372,7 +371,7 @@ def _collect_scene_node_labels(
 def _create_scene_node_objects(
     target_collection: bpy.types.Collection,
     num_scene_nodes: int,
-    scene_node_locations: dict[int, tuple[float, float, float]],
+    scene_node_translations: dict[int, tuple[float, float, float]],
     scene_node_yaws: dict[int, float],
     scene_node_parents: dict[int, int],
     scene_node_labels: dict[int, str],
@@ -388,9 +387,9 @@ def _create_scene_node_objects(
         scene_node_obj.empty_display_type = "PLAIN_AXES"
         scene_node_obj[SCENE_NODE_INDEX_PROP] = scene_node_index
 
-        scene_node_location = scene_node_locations.get(scene_node_index)
-        if scene_node_location is not None:
-            scene_node_obj.location = scene_node_location
+        scene_node_translation = scene_node_translations.get(scene_node_index)
+        if scene_node_translation is not None:
+            scene_node_obj.location = scene_node_translation
         scene_node_yaw = scene_node_yaws.get(scene_node_index)
         if scene_node_yaw is not None and scene_node_yaw != 0:
             scene_node_obj.rotation_euler[2] = scene_node_yaw
@@ -558,11 +557,11 @@ def import_fror_scene(
     mesh_indices_to_scene_node_indices = _mesh_indices_to_scene_node_indices(
         three_d_objs_pc
     )
-    scene_node_locations, scene_node_parents = _collect_scene_node_hierarchy(
+    scene_node_translations, scene_node_parents = _collect_scene_node_hierarchy(
         three_d_obj_pc.three_d_obj_db_pc
     )
     (
-        scene_node_locations_from_entries5,
+        scene_node_translations_from_entries5,
         scene_node_yaws_from_entries5,
         scene_node_groups_from_entries5,
         scene_node_baseline_z_from_entries5,
@@ -573,8 +572,11 @@ def import_fror_scene(
             len(three_d_objs_pc.entries),
         )
     )
-    for scene_node_index, scene_node_location in scene_node_locations_from_entries5.items():
-        scene_node_locations[scene_node_index] = scene_node_location
+    for (
+        scene_node_index,
+        scene_node_translation,
+    ) in scene_node_translations_from_entries5.items():
+        scene_node_translations[scene_node_index] = scene_node_translation
     scene_node_labels = _collect_scene_node_labels(
         three_d_obj_pc.three_d_obj_db_pc,
         three_d_obj_pc.bininfo_bin,
@@ -589,18 +591,18 @@ def import_fror_scene(
                 continue
             if "OVERLAY" not in scene_node_label.upper():
                 continue
-            scene_node_location = scene_node_locations.get(scene_node_index)
-            if scene_node_location is None:
+            scene_node_translation = scene_node_translations.get(scene_node_index)
+            if scene_node_translation is None:
                 continue
-            scene_node_locations[scene_node_index] = (
-                scene_node_location[0],
-                scene_node_location[1],
-                scene_node_location[2] + scene_node_baseline_z_from_entries5,
+            scene_node_translations[scene_node_index] = (
+                scene_node_translation[0],
+                scene_node_translation[1],
+                scene_node_translation[2] + scene_node_baseline_z_from_entries5,
             )
     scene_node_objects = _create_scene_node_objects(
         target_collection,
         len(three_d_objs_pc.entries),
-        scene_node_locations,
+        scene_node_translations,
         scene_node_yaws_from_entries5,
         scene_node_parents,
         scene_node_labels,

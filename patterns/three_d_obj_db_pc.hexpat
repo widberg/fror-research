@@ -1,5 +1,6 @@
 import std.core;
 import std.sys;
+import fror;
 
 // The string "3d objects scene definitions file is corrupted" associated with the `3dobjdb.pc`
 // files implies that `3dobjdb.pc` files are 3d objects scene definitions files.
@@ -31,10 +32,8 @@ struct ThreeDObjDbPcEntryEntry5 {
     u32 a;
     u16 b;
     u16 c;
-    float d;
-    u32 e;
-    u32 f;
-    u32 g;
+    Vec3f translation;
+    float g;
     u32 h;
     u32 i;
     if (false) { // FIXME: Some functon argument controls this
@@ -70,9 +69,7 @@ struct ThreeDObjDbPcSceneNode {
         u32 scene_node_index;
         u16 a;
         padding[2];
-        u32 b;
-        u32 c;
-        u32 d;
+        Vec3f translation;
         u32 e;
         u32 f;
         u32 g;
