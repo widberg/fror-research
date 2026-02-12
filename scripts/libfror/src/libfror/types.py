@@ -1547,8 +1547,909 @@ class BininfoBin(BinRead, BinWrite):
 
 
 @dataclass
+class ThreeDObjDbPcEntryTransform(BinRead, BinWrite):
+    floats: list[float]
+    data: list[int]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPcEntryTransform":
+        floats = binary_reader.read_list(
+            15, BinaryReader.read_float_args, None, endianness
+        )
+        data = binary_reader.read_list(8, BinaryReader.read_u32_args, None, endianness)
+        return ThreeDObjDbPcEntryTransform(floats, data)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcEntryTransform",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert len(value.floats) == 15
+        assert len(value.data) == 8
+        binary_writer.write_list(
+            value.floats, BinaryWriter.write_float_args, None, endianness
+        )
+        binary_writer.write_list(
+            value.data, BinaryWriter.write_u32_args, None, endianness
+        )
+
+
+@dataclass
+class ThreeDObjDbPcEntryEntry2(BinRead, BinWrite):
+    a: list[int]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPcEntryEntry2":
+        a = binary_reader.read_list(7, BinaryReader.read_u32_args, None, endianness)
+        return ThreeDObjDbPcEntryEntry2(a)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcEntryEntry2",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert len(value.a) == 7
+        binary_writer.write_list(value.a, BinaryWriter.write_u32_args, None, endianness)
+
+
+@dataclass
+class ThreeDObjDbPcEntryEntry3(BinRead, BinWrite):
+    a: list[int]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPcEntryEntry3":
+        a = binary_reader.read_list(3, BinaryReader.read_u32_args, None, endianness)
+        return ThreeDObjDbPcEntryEntry3(a)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcEntryEntry3",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert len(value.a) == 3
+        binary_writer.write_list(value.a, BinaryWriter.write_u32_args, None, endianness)
+
+
+@dataclass
+class ThreeDObjDbPcEntryEntry4(BinRead, BinWrite):
+    a: list[int]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPcEntryEntry4":
+        a = binary_reader.read_list(2, BinaryReader.read_u32_args, None, endianness)
+        return ThreeDObjDbPcEntryEntry4(a)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcEntryEntry4",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert len(value.a) == 2
+        binary_writer.write_list(value.a, BinaryWriter.write_u32_args, None, endianness)
+
+
+@dataclass
+class ThreeDObjDbPcEntryEntry5(BinRead, BinWrite):
+    a: int
+    b: int
+    c: int
+    d: float
+    e: int
+    f: int
+    g: int
+    h: int
+    i: int
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPcEntryEntry5":
+        a = binary_reader.read_u32(endianness)
+        b = binary_reader.read_u16(endianness)
+        c = binary_reader.read_u16(endianness)
+        d = binary_reader.read_float(endianness)
+        e = binary_reader.read_u32(endianness)
+        f = binary_reader.read_u32(endianness)
+        g = binary_reader.read_u32(endianness)
+        h = binary_reader.read_u32(endianness)
+        i = binary_reader.read_u32(endianness)
+        return ThreeDObjDbPcEntryEntry5(a, b, c, d, e, f, g, h, i)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcEntryEntry5",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert 0 <= value.b <= 0xFFFF
+        assert 0 <= value.c <= 0xFFFF
+        binary_writer.write_u32(value.a, endianness)
+        binary_writer.write_u16(value.b, endianness)
+        binary_writer.write_u16(value.c, endianness)
+        binary_writer.write_float(value.d, endianness)
+        binary_writer.write_u32(value.e, endianness)
+        binary_writer.write_u32(value.f, endianness)
+        binary_writer.write_u32(value.g, endianness)
+        binary_writer.write_u32(value.h, endianness)
+        binary_writer.write_u32(value.i, endianness)
+
+
+@dataclass
+class ThreeDObjDbPcEntryPivotData(BinRead, BinWrite):
+    a: list[float]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPcEntryPivotData":
+        a = binary_reader.read_list(7, BinaryReader.read_float_args, None, endianness)
+        return ThreeDObjDbPcEntryPivotData(a)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcEntryPivotData",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert len(value.a) == 7
+        binary_writer.write_list(
+            value.a, BinaryWriter.write_float_args, None, endianness
+        )
+
+
+@dataclass
+class ThreeDObjDbPcEntryFlag10Entry(BinRead, BinWrite):
+    a: list[int]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPcEntryFlag10Entry":
+        a = binary_reader.read_list(5, BinaryReader.read_u32_args, None, endianness)
+        return ThreeDObjDbPcEntryFlag10Entry(a)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcEntryFlag10Entry",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert len(value.a) == 5
+        binary_writer.write_list(value.a, BinaryWriter.write_u32_args, None, endianness)
+
+
+@dataclass
+class ThreeDObjDbPcEntryEntry10(BinRead, BinWrite):
+    a: list[int]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPcEntryEntry10":
+        a = binary_reader.read_list(2, BinaryReader.read_u32_args, None, endianness)
+        return ThreeDObjDbPcEntryEntry10(a)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcEntryEntry10",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert len(value.a) == 2
+        binary_writer.write_list(value.a, BinaryWriter.write_u32_args, None, endianness)
+
+
+@dataclass
+class ThreeDObjDbPcSceneNodeSubObjectBinding(BinRead, BinWrite):
+    sub_object_name_index: int
+    scene_node_index: int
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPcSceneNodeSubObjectBinding":
+        sub_object_name_index = binary_reader.read_u32(endianness)
+        scene_node_index = binary_reader.read_u32(endianness)
+        return ThreeDObjDbPcSceneNodeSubObjectBinding(
+            sub_object_name_index, scene_node_index
+        )
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcSceneNodeSubObjectBinding",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_u32(value.sub_object_name_index, endianness)
+        binary_writer.write_u32(value.scene_node_index, endianness)
+
+
+@dataclass
+class ThreeDObjDbPcSceneNode(BinRead, BinWrite):
+    scene_node_index: int
+    a: int
+    b: int
+    c: int
+    d: int
+    e: int
+    f: int
+    g: int
+    sub_object_bindings: list[ThreeDObjDbPcSceneNodeSubObjectBinding]
+    child_nodes: list["ThreeDObjDbPcSceneNode"]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: tuple[int], endianness: Endianness
+    ) -> "ThreeDObjDbPcSceneNode":
+        (flags,) = args
+        scene_node_index = binary_reader.read_u32(endianness)
+        if (flags & 0x01) != 0:
+            return ThreeDObjDbPcSceneNode(scene_node_index, 0, 0, 0, 0, 0, 0, 0, [], [])
+
+        a = binary_reader.read_u16(endianness)
+        binary_reader.skip(2)
+        b = binary_reader.read_u32(endianness)
+        c = binary_reader.read_u32(endianness)
+        d = binary_reader.read_u32(endianness)
+        e = binary_reader.read_u32(endianness)
+        f = binary_reader.read_u32(endianness)
+        g = binary_reader.read_u32(endianness)
+        num_sub_object_bindings = binary_reader.read_u32(endianness)
+        sub_object_bindings = binary_reader.read_list(
+            num_sub_object_bindings,
+            ThreeDObjDbPcSceneNodeSubObjectBinding.binread,
+            None,
+            endianness,
+        )
+        num_child_nodes = binary_reader.read_u32(endianness)
+        child_nodes = binary_reader.read_list(
+            num_child_nodes, ThreeDObjDbPcSceneNode.binread, (flags,), endianness
+        )
+        return ThreeDObjDbPcSceneNode(
+            scene_node_index,
+            a,
+            b,
+            c,
+            d,
+            e,
+            f,
+            g,
+            sub_object_bindings,
+            child_nodes,
+        )
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcSceneNode",
+        args: tuple[int],
+        endianness: Endianness,
+    ) -> None:
+        (flags,) = args
+        binary_writer.write_u32(value.scene_node_index, endianness)
+        if (flags & 0x01) != 0:
+            assert value.a == 0
+            assert value.b == 0
+            assert value.c == 0
+            assert value.d == 0
+            assert value.e == 0
+            assert value.f == 0
+            assert value.g == 0
+            assert len(value.sub_object_bindings) == 0
+            assert len(value.child_nodes) == 0
+            return
+
+        assert 0 <= value.a <= 0xFFFF
+        binary_writer.write_u16(value.a, endianness)
+        binary_writer.write(b"\0" * 2)
+        binary_writer.write_u32(value.b, endianness)
+        binary_writer.write_u32(value.c, endianness)
+        binary_writer.write_u32(value.d, endianness)
+        binary_writer.write_u32(value.e, endianness)
+        binary_writer.write_u32(value.f, endianness)
+        binary_writer.write_u32(value.g, endianness)
+        binary_writer.write_u32(len(value.sub_object_bindings), endianness)
+        binary_writer.write_list(
+            value.sub_object_bindings,
+            ThreeDObjDbPcSceneNodeSubObjectBinding.binwrite,
+            None,
+            endianness,
+        )
+        binary_writer.write_u32(len(value.child_nodes), endianness)
+        binary_writer.write_list(
+            value.child_nodes, ThreeDObjDbPcSceneNode.binwrite, (flags,), endianness
+        )
+
+
+@dataclass
+class ThreeDObjDbPcEntry(BinRead, BinWrite):
+    object_shape_name_index: int
+    transforms: list[ThreeDObjDbPcEntryTransform]
+    entries2: list[ThreeDObjDbPcEntryEntry2]
+    entries3: list[ThreeDObjDbPcEntryEntry3]
+    entries4: list[ThreeDObjDbPcEntryEntry4]
+    entries5: list[ThreeDObjDbPcEntryEntry5]
+    flags: int
+    entries6: list[ThreeDObjDbPcEntryPivotData]
+    entries7: list[ThreeDObjDbPcEntryFlag10Entry]
+    lod_switch_distances: list[float]
+    scene_node_count: int
+    scene_node_capacity: int
+    active_scene_node_indices: list[int]
+    c: int
+    d: int
+    e: int
+    entries10: list[ThreeDObjDbPcEntryEntry10]
+    root_scene_nodes: list[ThreeDObjDbPcSceneNode]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPcEntry":
+        check = binary_reader.read_list(4, BinaryReader.read_s32_args, None, endianness)
+        assert all(value == -1 for value in check)
+        object_shape_name_index = binary_reader.read_u32(endianness)
+        num_transforms = binary_reader.read_u8(endianness)
+        binary_reader.skip(3)
+        transforms = binary_reader.read_list(
+            num_transforms, ThreeDObjDbPcEntryTransform.binread, None, endianness
+        )
+        num_entries2 = binary_reader.read_u32(endianness)
+        entries2 = binary_reader.read_list(
+            num_entries2, ThreeDObjDbPcEntryEntry2.binread, None, endianness
+        )
+        num_entries3 = binary_reader.read_u32(endianness)
+        entries3 = binary_reader.read_list(
+            num_entries3, ThreeDObjDbPcEntryEntry3.binread, None, endianness
+        )
+        num_entries4 = binary_reader.read_u8(endianness)
+        binary_reader.skip(3)
+        entries4 = binary_reader.read_list(
+            num_entries4, ThreeDObjDbPcEntryEntry4.binread, None, endianness
+        )
+        num_entries5 = binary_reader.read_u16(endianness)
+        binary_reader.skip(2)
+        entries5 = binary_reader.read_list(
+            num_entries5, ThreeDObjDbPcEntryEntry5.binread, None, endianness
+        )
+        flags = binary_reader.read_u32(endianness)
+        entries6: list[ThreeDObjDbPcEntryPivotData] = []
+        if (flags & 0x04) != 0:
+            num_entries6 = binary_reader.read_u32(endianness)
+            entries6 = binary_reader.read_list(
+                num_entries6, ThreeDObjDbPcEntryPivotData.binread, None, endianness
+            )
+        entries7: list[ThreeDObjDbPcEntryFlag10Entry] = []
+        if (flags & 0x10) != 0:
+            num_entries7 = binary_reader.read_u32(endianness)
+            entries7 = binary_reader.read_list(
+                num_entries7, ThreeDObjDbPcEntryFlag10Entry.binread, None, endianness
+            )
+        assert (flags & 0x02) == 0, "Unsupported ThreeDObjDbPcEntry flag 0x02"
+        assert (flags & 0x08) == 0, "Unsupported ThreeDObjDbPcEntry flag 0x08"
+        num_lod_switch_distances = binary_reader.read_u8(endianness)
+        binary_reader.skip(3)
+        lod_switch_distances = binary_reader.read_list(
+            num_lod_switch_distances, BinaryReader.read_float_args, None, endianness
+        )
+        scene_node_count = binary_reader.read_u32(endianness)
+        scene_node_capacity = binary_reader.read_u32(endianness)
+        num_active_scene_nodes = binary_reader.read_u8(endianness)
+        binary_reader.skip(3)
+        active_scene_node_indices = binary_reader.read_list(
+            num_active_scene_nodes, BinaryReader.read_u32_args, None, endianness
+        )
+        c = binary_reader.read_u32(endianness)
+        d = binary_reader.read_u16(endianness)
+        binary_reader.skip(2)
+        e = binary_reader.read_u16(endianness)
+        binary_reader.skip(2)
+        num_entries10 = binary_reader.read_u8(endianness)
+        binary_reader.skip(3)
+        entries10 = binary_reader.read_list(
+            num_entries10, ThreeDObjDbPcEntryEntry10.binread, None, endianness
+        )
+        num_root_scene_nodes = binary_reader.read_u8(endianness)
+        binary_reader.skip(3)
+        root_scene_nodes = binary_reader.read_list(
+            num_root_scene_nodes, ThreeDObjDbPcSceneNode.binread, (flags,), endianness
+        )
+        return ThreeDObjDbPcEntry(
+            object_shape_name_index,
+            transforms,
+            entries2,
+            entries3,
+            entries4,
+            entries5,
+            flags,
+            entries6,
+            entries7,
+            lod_switch_distances,
+            scene_node_count,
+            scene_node_capacity,
+            active_scene_node_indices,
+            c,
+            d,
+            e,
+            entries10,
+            root_scene_nodes,
+        )
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcEntry",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_list(
+            [-1] * 4, BinaryWriter.write_s32_args, None, endianness
+        )
+        binary_writer.write_u32(value.object_shape_name_index, endianness)
+
+        assert len(value.transforms) <= 0xFF
+        binary_writer.write_u8(len(value.transforms), endianness)
+        binary_writer.write(b"\0" * 3)
+        binary_writer.write_list(
+            value.transforms, ThreeDObjDbPcEntryTransform.binwrite, None, endianness
+        )
+
+        binary_writer.write_u32(len(value.entries2), endianness)
+        binary_writer.write_list(
+            value.entries2, ThreeDObjDbPcEntryEntry2.binwrite, None, endianness
+        )
+
+        binary_writer.write_u32(len(value.entries3), endianness)
+        binary_writer.write_list(
+            value.entries3, ThreeDObjDbPcEntryEntry3.binwrite, None, endianness
+        )
+
+        assert len(value.entries4) <= 0xFF
+        binary_writer.write_u8(len(value.entries4), endianness)
+        binary_writer.write(b"\0" * 3)
+        binary_writer.write_list(
+            value.entries4, ThreeDObjDbPcEntryEntry4.binwrite, None, endianness
+        )
+
+        assert len(value.entries5) <= 0xFFFF
+        binary_writer.write_u16(len(value.entries5), endianness)
+        binary_writer.write(b"\0" * 2)
+        binary_writer.write_list(
+            value.entries5, ThreeDObjDbPcEntryEntry5.binwrite, None, endianness
+        )
+
+        binary_writer.write_u32(value.flags, endianness)
+        if (value.flags & 0x04) != 0:
+            binary_writer.write_u32(len(value.entries6), endianness)
+            binary_writer.write_list(
+                value.entries6, ThreeDObjDbPcEntryPivotData.binwrite, None, endianness
+            )
+        else:
+            assert len(value.entries6) == 0
+
+        if (value.flags & 0x10) != 0:
+            binary_writer.write_u32(len(value.entries7), endianness)
+            binary_writer.write_list(
+                value.entries7, ThreeDObjDbPcEntryFlag10Entry.binwrite, None, endianness
+            )
+        else:
+            assert len(value.entries7) == 0
+
+        assert (value.flags & 0x02) == 0, "Unsupported ThreeDObjDbPcEntry flag 0x02"
+        assert (value.flags & 0x08) == 0, "Unsupported ThreeDObjDbPcEntry flag 0x08"
+
+        assert len(value.lod_switch_distances) <= 0xFF
+        binary_writer.write_u8(len(value.lod_switch_distances), endianness)
+        binary_writer.write(b"\0" * 3)
+        binary_writer.write_list(
+            value.lod_switch_distances,
+            BinaryWriter.write_float_args,
+            None,
+            endianness,
+        )
+
+        binary_writer.write_u32(value.scene_node_count, endianness)
+        binary_writer.write_u32(value.scene_node_capacity, endianness)
+
+        assert len(value.active_scene_node_indices) <= 0xFF
+        binary_writer.write_u8(len(value.active_scene_node_indices), endianness)
+        binary_writer.write(b"\0" * 3)
+        binary_writer.write_list(
+            value.active_scene_node_indices,
+            BinaryWriter.write_u32_args,
+            None,
+            endianness,
+        )
+
+        assert 0 <= value.d <= 0xFFFF
+        assert 0 <= value.e <= 0xFFFF
+        binary_writer.write_u32(value.c, endianness)
+        binary_writer.write_u16(value.d, endianness)
+        binary_writer.write(b"\0" * 2)
+        binary_writer.write_u16(value.e, endianness)
+        binary_writer.write(b"\0" * 2)
+
+        assert len(value.entries10) <= 0xFF
+        binary_writer.write_u8(len(value.entries10), endianness)
+        binary_writer.write(b"\0" * 3)
+        binary_writer.write_list(
+            value.entries10, ThreeDObjDbPcEntryEntry10.binwrite, None, endianness
+        )
+
+        assert len(value.root_scene_nodes) <= 0xFF
+        binary_writer.write_u8(len(value.root_scene_nodes), endianness)
+        binary_writer.write(b"\0" * 3)
+        binary_writer.write_list(
+            value.root_scene_nodes,
+            ThreeDObjDbPcSceneNode.binwrite,
+            (value.flags,),
+            endianness,
+        )
+
+
+@dataclass
+class ThreeDObjDbPcEntry3(BinRead, BinWrite):
+    a: int
+    b: int
+    c: int
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPcEntry3":
+        a = binary_reader.read_u16(endianness)
+        b = binary_reader.read_u8(endianness)
+        c = binary_reader.read_u8(endianness)
+        return ThreeDObjDbPcEntry3(a, b, c)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcEntry3",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert 0 <= value.a <= 0xFFFF
+        binary_writer.write_u16(value.a, endianness)
+        binary_writer.write_u8(value.b, endianness)
+        binary_writer.write_u8(value.c, endianness)
+
+
+@dataclass
+class ThreeDObjDbPcEntry4(BinRead, BinWrite):
+    a: list[int]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPcEntry4":
+        a = binary_reader.read_list(6, BinaryReader.read_u32_args, None, endianness)
+        return ThreeDObjDbPcEntry4(a)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcEntry4",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert len(value.a) == 6
+        binary_writer.write_list(value.a, BinaryWriter.write_u32_args, None, endianness)
+
+
+@dataclass
+class ThreeDObjDbPcEntry5Entry(BinRead, BinWrite):
+    a: list[int]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPcEntry5Entry":
+        a = binary_reader.read_list(6, BinaryReader.read_u32_args, None, endianness)
+        return ThreeDObjDbPcEntry5Entry(a)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcEntry5Entry",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert len(value.a) == 6
+        binary_writer.write_list(value.a, BinaryWriter.write_u32_args, None, endianness)
+
+
+@dataclass
+class ThreeDObjDbPcEntry5(BinRead, BinWrite):
+    entries: list[ThreeDObjDbPcEntry5Entry]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPcEntry5":
+        num_entries = binary_reader.read_u32(endianness)
+        entries = binary_reader.read_list(
+            num_entries, ThreeDObjDbPcEntry5Entry.binread, None, endianness
+        )
+        return ThreeDObjDbPcEntry5(entries)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcEntry5",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_u32(len(value.entries), endianness)
+        binary_writer.write_list(
+            value.entries, ThreeDObjDbPcEntry5Entry.binwrite, None, endianness
+        )
+
+
+@dataclass
+class ThreeDObjDbPcEntry6(BinRead, BinWrite):
+    a: int
+    b: int
+    entries: list[int]
+    c: int
+    d: list[int]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPcEntry6":
+        a = binary_reader.read_u32(endianness)
+        b = binary_reader.read_u32(endianness)
+        num_entries = binary_reader.read_u32(endianness)
+        entries = binary_reader.read_list(
+            num_entries, BinaryReader.read_u8_args, None, endianness
+        )
+        c = binary_reader.read_u32(endianness)
+        d = binary_reader.read_list(21, BinaryReader.read_u32_args, None, endianness)
+        return ThreeDObjDbPcEntry6(a, b, entries, c, d)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPcEntry6",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert len(value.d) == 21
+        binary_writer.write_u32(value.a, endianness)
+        binary_writer.write_u32(value.b, endianness)
+        binary_writer.write_u32(len(value.entries), endianness)
+        binary_writer.write_list(
+            value.entries, BinaryWriter.write_u8_args, None, endianness
+        )
+        binary_writer.write_u32(value.c, endianness)
+        binary_writer.write_list(value.d, BinaryWriter.write_u32_args, None, endianness)
+
+
+@dataclass
+class ThreeDObjDbPc(BinRead, BinWrite):
+    file_format_version: int
+    entries: list[ThreeDObjDbPcEntry]
+    c: int
+    d: int
+    e: int
+    f: int
+    g: int
+    h: int
+    i: int
+    j: int
+    k: int
+    l: int
+    m: int
+    n: int
+    o: int
+    q: int
+    r: typing.Optional[int]
+    s: typing.Optional[int]
+    entries2: list[int]
+    entries3: list[ThreeDObjDbPcEntry3]
+    entries4: list[ThreeDObjDbPcEntry4]
+    t: int
+    entries5: list[ThreeDObjDbPcEntry5]
+    u: int
+    entries6: list[ThreeDObjDbPcEntry6]
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ThreeDObjDbPc":
+        file_format_version = binary_reader.read_u32(endianness)
+        num_entries = binary_reader.read_u32(endianness)
+        c = binary_reader.read_u32(endianness)
+        d = binary_reader.read_u32(endianness)
+        e = binary_reader.read_u32(endianness)
+        f = binary_reader.read_u32(endianness)
+        g = binary_reader.read_u32(endianness)
+        h = binary_reader.read_u32(endianness)
+        i = binary_reader.read_u32(endianness)
+        j = binary_reader.read_u32(endianness)
+        k = binary_reader.read_u32(endianness)
+        l = binary_reader.read_u32(endianness)
+        m = binary_reader.read_u32(endianness)
+        n = binary_reader.read_u32(endianness)
+        o = binary_reader.read_u32(endianness)
+        num_entries2 = binary_reader.read_u32(endianness)
+        q = binary_reader.read_u32(endianness)
+
+        r = None
+        s = None
+        if file_format_version > 17:
+            r = binary_reader.read_u32(endianness)
+            s = binary_reader.read_u32(endianness)
+
+        entries = binary_reader.read_list(
+            num_entries, ThreeDObjDbPcEntry.binread, None, endianness
+        )
+
+        entries2: list[int] = []
+        entries3: list[ThreeDObjDbPcEntry3] = []
+        entries4: list[ThreeDObjDbPcEntry4] = []
+        if num_entries2 != 0:
+            num_entries3 = binary_reader.read_u32(endianness)
+            num_entries4 = binary_reader.read_u32(endianness)
+            entries2 = binary_reader.read_list(
+                num_entries2, BinaryReader.read_u32_args, None, endianness
+            )
+            entries3 = binary_reader.read_list(
+                num_entries3, ThreeDObjDbPcEntry3.binread, None, endianness
+            )
+            entries4 = binary_reader.read_list(
+                num_entries4, ThreeDObjDbPcEntry4.binread, None, endianness
+            )
+
+        num_entries5 = binary_reader.read_u32(endianness)
+        t = binary_reader.read_u32(endianness)
+        entries5 = binary_reader.read_list(
+            num_entries5, ThreeDObjDbPcEntry5.binread, None, endianness
+        )
+
+        num_entries6 = binary_reader.read_u32(endianness)
+        u = binary_reader.read_u32(endianness)
+        entries6 = binary_reader.read_list(
+            num_entries6, ThreeDObjDbPcEntry6.binread, None, endianness
+        )
+
+        return ThreeDObjDbPc(
+            file_format_version,
+            entries,
+            c,
+            d,
+            e,
+            f,
+            g,
+            h,
+            i,
+            j,
+            k,
+            l,
+            m,
+            n,
+            o,
+            q,
+            r,
+            s,
+            entries2,
+            entries3,
+            entries4,
+            t,
+            entries5,
+            u,
+            entries6,
+        )
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ThreeDObjDbPc",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        binary_writer.write_u32(value.file_format_version, endianness)
+        binary_writer.write_u32(len(value.entries), endianness)
+        binary_writer.write_u32(value.c, endianness)
+        binary_writer.write_u32(value.d, endianness)
+        binary_writer.write_u32(value.e, endianness)
+        binary_writer.write_u32(value.f, endianness)
+        binary_writer.write_u32(value.g, endianness)
+        binary_writer.write_u32(value.h, endianness)
+        binary_writer.write_u32(value.i, endianness)
+        binary_writer.write_u32(value.j, endianness)
+        binary_writer.write_u32(value.k, endianness)
+        binary_writer.write_u32(value.l, endianness)
+        binary_writer.write_u32(value.m, endianness)
+        binary_writer.write_u32(value.n, endianness)
+        binary_writer.write_u32(value.o, endianness)
+        binary_writer.write_u32(len(value.entries2), endianness)
+        binary_writer.write_u32(value.q, endianness)
+
+        if value.file_format_version > 17:
+            assert value.r is not None
+            assert value.s is not None
+            binary_writer.write_u32(value.r, endianness)
+            binary_writer.write_u32(value.s, endianness)
+        else:
+            assert value.r is None
+            assert value.s is None
+
+        binary_writer.write_list(
+            value.entries, ThreeDObjDbPcEntry.binwrite, None, endianness
+        )
+
+        if len(value.entries2) != 0:
+            binary_writer.write_u32(len(value.entries3), endianness)
+            binary_writer.write_u32(len(value.entries4), endianness)
+            binary_writer.write_list(
+                value.entries2, BinaryWriter.write_u32_args, None, endianness
+            )
+            binary_writer.write_list(
+                value.entries3, ThreeDObjDbPcEntry3.binwrite, None, endianness
+            )
+            binary_writer.write_list(
+                value.entries4, ThreeDObjDbPcEntry4.binwrite, None, endianness
+            )
+        else:
+            assert len(value.entries3) == 0
+            assert len(value.entries4) == 0
+
+        binary_writer.write_u32(len(value.entries5), endianness)
+        binary_writer.write_u32(value.t, endianness)
+        binary_writer.write_list(
+            value.entries5, ThreeDObjDbPcEntry5.binwrite, None, endianness
+        )
+
+        binary_writer.write_u32(len(value.entries6), endianness)
+        binary_writer.write_u32(value.u, endianness)
+        binary_writer.write_list(
+            value.entries6, ThreeDObjDbPcEntry6.binwrite, None, endianness
+        )
+
+
+@dataclass
 class ThreeDObjPc:
-    three_d_obj_db_pc: bytes  # TODO: Real ThreeDObjDBPc type
+    three_d_obj_db_pc: ThreeDObjDbPc
     three_d_objs_pc: ThreeDObjsPc
     three_d_objsp_pc: ThreeDObjspPc
     bininfo_bin: BininfoBin
@@ -1562,7 +2463,9 @@ class ThreeDObjPc:
         bininfo_bin_path = path / "bininfo.bin"
         textures_pc_path = path / "textures.pc"
 
-        three_d_obj_db_pc = three_d_obj_db_pc_path.read_bytes()
+        three_d_obj_db_pc = ThreeDObjDbPc.binread_from_path(
+            three_d_obj_db_pc_path, None, endianness
+        )
         three_d_objs_pc = ThreeDObjsPc.binread_from_path_decompress(
             three_d_objs_pc_path,
             None,
@@ -1593,7 +2496,9 @@ class ThreeDObjPc:
         bininfo_bin_path = path / "bininfo.bin"
         textures_pc_path = path / "textures.pc"
 
-        three_d_obj_db_pc_path.write_bytes(self.three_d_obj_db_pc)
+        ThreeDObjDbPc.binwrite_to_path(
+            three_d_obj_db_pc_path, self.three_d_obj_db_pc, None, endianness
+        )
         ThreeDObjsPc.binwrite_to_path_compress(
             three_d_objs_pc_path, self.three_d_objs_pc, None, endianness
         )

@@ -45,14 +45,6 @@ struct ThreeDObjDbPcEntryFlag10Entry {
     u32 a[5];
 };
 
-struct ThreeDObjDbPcEntryLodSwitchDistance {
-    float distance;
-};
-
-struct ThreeDObjDbPcEntryActiveSceneNode {
-    u32 scene_node_index;
-};
-
 struct ThreeDObjDbPcEntryEntry10 {
     u32 a[2];
 };
@@ -131,12 +123,12 @@ struct ThreeDObjDbPcEntry {
     }
     u8 num_lod_switch_distances;
     padding[3];
-    ThreeDObjDbPcEntryLodSwitchDistance lod_switch_distances[num_lod_switch_distances];
+    float lod_switch_distances[num_lod_switch_distances];
     u32 scene_node_count;
     u32 scene_node_capacity;
     u8 num_active_scene_nodes;
     padding[3];
-    ThreeDObjDbPcEntryActiveSceneNode active_scene_nodes[num_active_scene_nodes];
+    u32 active_scene_node_indices[num_active_scene_nodes];
     u32 c;
     u16 d;
     padding[2];
@@ -148,10 +140,6 @@ struct ThreeDObjDbPcEntry {
     u8 num_root_scene_nodes;
     padding[3];
     ThreeDObjDbPcSceneNode root_scene_nodes[num_root_scene_nodes];
-};
-
-struct ThreeDObjDbPcEntry2 {
-    u32 a;
 };
 
 struct ThreeDObjDbPcEntry3 {
@@ -208,7 +196,7 @@ struct ThreeDObjDbPc {
     if (num_entries2 != 0) {
         u32 num_entries3;
         u32 num_entries4;
-        ThreeDObjDbPcEntry2 entries2[num_entries2];
+        u32 entries2[num_entries2];
         ThreeDObjDbPcEntry3 entries3[num_entries3];
         ThreeDObjDbPcEntry4 entries4[num_entries4];
     }
