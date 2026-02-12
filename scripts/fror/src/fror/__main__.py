@@ -949,7 +949,18 @@ class CreateTexturesPcSubcommand(Subcommand):
 
 
 class BininfoBinManifest(BaseModel):
-    groups: list[list[str]]
+    object_shape_names: list[str]
+    sub_object_names: list[str]
+    camera_names: list[str]
+    texture_livery_sets: list[str]
+    reserved4: list[str]
+    scene_link_type_names: list[str]
+    light_names: list[str]
+    surface_or_zone_types: list[str]
+    reserved8: list[str]
+    effect_attachment_names: list[str]
+    reserved10: list[str]
+    damage_names: list[str]
 
     model_config = ConfigDict(
         extra="forbid",
@@ -958,12 +969,34 @@ class BininfoBinManifest(BaseModel):
     @staticmethod
     def from_bininfo_bin(bininfo_bin: BininfoBin) -> "BininfoBinManifest":
         return BininfoBinManifest(
-            groups=bininfo_bin.groups,
+            object_shape_names=bininfo_bin.object_shape_names,
+            sub_object_names=bininfo_bin.sub_object_names,
+            camera_names=bininfo_bin.camera_names,
+            texture_livery_sets=bininfo_bin.texture_livery_sets,
+            reserved4=bininfo_bin.reserved4,
+            scene_link_type_names=bininfo_bin.scene_link_type_names,
+            light_names=bininfo_bin.light_names,
+            surface_or_zone_types=bininfo_bin.surface_or_zone_types,
+            reserved8=bininfo_bin.reserved8,
+            effect_attachment_names=bininfo_bin.effect_attachment_names,
+            reserved10=bininfo_bin.reserved10,
+            damage_names=bininfo_bin.damage_names,
         )
 
     def to_bininfo_bin(self) -> "BininfoBin":
         return BininfoBin(
-            self.groups,
+            self.object_shape_names,
+            self.sub_object_names,
+            self.camera_names,
+            self.texture_livery_sets,
+            self.reserved4,
+            self.scene_link_type_names,
+            self.light_names,
+            self.surface_or_zone_types,
+            self.reserved8,
+            self.effect_attachment_names,
+            self.reserved10,
+            self.damage_names,
         )
 
 

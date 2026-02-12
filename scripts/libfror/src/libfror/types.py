@@ -40,18 +40,46 @@ THREE_D_OBJSP_PC_FILE_FORMAT = FileFormat("3dobjsp_pc", "data/**/3dobjsp.pc", Tr
 
 
 @dataclass
-class ThreeDObjsPcEntry(BinRead, BinWrite):
-    a: list[float]
-    the_first: int
-    m: int
+class ObjectThing(BinRead, BinWrite):
+    length: int
+    flags: int
     n: int
-    o: int
+    begin: int
     p: int
-    the_second: int
-    q: int
-    r: int
-    s: int
-    t: int
+
+    @classmethod
+    def binread(
+        cls, binary_reader: BinaryReader, args: None, endianness: Endianness
+    ) -> "ObjectThing":
+        length = binary_reader.read_u16(endianness)
+        flags = binary_reader.read_u16(endianness)
+        n = binary_reader.read_u32(endianness)
+        begin = binary_reader.read_u32(endianness)
+        p = binary_reader.read_u32(endianness)
+        return ObjectThing(length, flags, n, begin, p)
+
+    @classmethod
+    def binwrite(
+        cls,
+        binary_writer: BinaryWriter,
+        value: "ObjectThing",
+        args: None,
+        endianness: Endianness,
+    ) -> None:
+        assert 0 <= value.length <= 0xFFFF
+        assert 0 <= value.flags <= 0xFFFF
+        binary_writer.write_u16(value.length, endianness)
+        binary_writer.write_u16(value.flags, endianness)
+        binary_writer.write_u32(value.n, endianness)
+        binary_writer.write_u32(value.begin, endianness)
+        binary_writer.write_u32(value.p, endianness)
+
+
+@dataclass
+class ThreeDObjsPcEntry(BinRead, BinWrite):
+    transformation: list[float]
+    lod_near: ObjectThing
+    lod_far: ObjectThing
     u: int
     v: int
     w: int
@@ -61,24 +89,16 @@ class ThreeDObjsPcEntry(BinRead, BinWrite):
     def binread(
         cls, binary_reader: BinaryReader, args: None, endianness: Endianness
     ) -> "ThreeDObjsPcEntry":
-        a = binary_reader.read_list(12, BinaryReader.read_float_args, None, endianness)
-        the_first = binary_reader.read_u16(endianness)
-        m = binary_reader.read_u16(endianness)
-        n = binary_reader.read_u32(endianness)
-        o = binary_reader.read_u32(endianness)
-        p = binary_reader.read_u32(endianness)
-        the_second = binary_reader.read_u16(endianness)
-        q = binary_reader.read_u16(endianness)
-        r = binary_reader.read_u32(endianness)
-        s = binary_reader.read_u32(endianness)
-        t = binary_reader.read_u32(endianness)
+        transformation = binary_reader.read_list(
+            12, BinaryReader.read_float_args, None, endianness
+        )
+        lod_near = ObjectThing.binread(binary_reader, None, endianness)
+        lod_far = ObjectThing.binread(binary_reader, None, endianness)
         u = binary_reader.read_u32(endianness)
         v = binary_reader.read_u32(endianness)
         w = binary_reader.read_u32(endianness)
         x = binary_reader.read_u32(endianness)
-        return ThreeDObjsPcEntry(
-            a, the_first, m, n, o, p, the_second, q, r, s, t, u, v, w, x
-        )
+        return ThreeDObjsPcEntry(transformation, lod_near, lod_far, u, v, w, x)
 
     @classmethod
     def binwrite(
@@ -89,18 +109,10 @@ class ThreeDObjsPcEntry(BinRead, BinWrite):
         endianness: Endianness,
     ) -> None:
         binary_writer.write_list(
-            value.a, BinaryWriter.write_float_args, None, endianness
+            value.transformation, BinaryWriter.write_float_args, None, endianness
         )
-        binary_writer.write_u16(value.the_first, endianness)
-        binary_writer.write_u16(value.m, endianness)
-        binary_writer.write_u32(value.n, endianness)
-        binary_writer.write_u32(value.o, endianness)
-        binary_writer.write_u32(value.p, endianness)
-        binary_writer.write_u16(value.the_second, endianness)
-        binary_writer.write_u16(value.q, endianness)
-        binary_writer.write_u32(value.r, endianness)
-        binary_writer.write_u32(value.s, endianness)
-        binary_writer.write_u32(value.t, endianness)
+        ObjectThing.binwrite(binary_writer, value.lod_near, None, endianness)
+        ObjectThing.binwrite(binary_writer, value.lod_far, None, endianness)
         binary_writer.write_u32(value.u, endianness)
         binary_writer.write_u32(value.v, endianness)
         binary_writer.write_u32(value.w, endianness)
@@ -111,11 +123,11 @@ def calculate_sum(arr: list[ThreeDObjsPcEntry]) -> int:
     sum = 0
     for i in range(len(arr)):
         elm = arr[i]
-        sum += elm.the_first + elm.the_second
+        sum += elm.lod_near.length + elm.lod_far.length
     return sum
 
 
-def calculate_size(flags: int, w: int) -> int:
+def calculate_size(flags: int, texture_index: int) -> int:
     size = 20
     cursor_0 = (flags >> 0) & 0xFF
     cursor_1 = (flags >> 8) & 0xFF
@@ -125,7 +137,7 @@ def calculate_size(flags: int, w: int) -> int:
         size += 20
     if (cursor_1 & 1) != 0:
         size += 4
-    if w == -1 or (cursor_0 & 2) != 0 or (cursor_0 & 4) != 0:
+    if texture_index == -1 or (cursor_0 & 2) != 0 or (cursor_0 & 4) != 0:
         size += 4
     if (cursor_0 & 8) != 0:
         size += 4
@@ -147,7 +159,7 @@ def calculate_size(flags: int, w: int) -> int:
 @dataclass
 class MeshDescriptor(BinRead, BinWrite):
     flags: int
-    w: int
+    texture_index: int
     num_vertices: int
     num_triangle_strips: int
     data: bytes
@@ -157,11 +169,13 @@ class MeshDescriptor(BinRead, BinWrite):
         cls, binary_reader: BinaryReader, args: None, endianness: Endianness
     ) -> "MeshDescriptor":
         flags = binary_reader.read_u32(endianness)
-        w = binary_reader.read_s16(endianness)
+        texture_index = binary_reader.read_s16(endianness)
         num_vertices = binary_reader.read_u16(endianness)
         num_triangle_strips = binary_reader.read_u16(endianness)
-        data = binary_reader.read(calculate_size(flags, w) - 4 - 2 - 2 - 2)
-        return MeshDescriptor(flags, w, num_vertices, num_triangle_strips, data)
+        data = binary_reader.read(calculate_size(flags, texture_index) - 4 - 2 - 2 - 2)
+        return MeshDescriptor(
+            flags, texture_index, num_vertices, num_triangle_strips, data
+        )
 
     @classmethod
     def binwrite(
@@ -171,14 +185,14 @@ class MeshDescriptor(BinRead, BinWrite):
         args: None,
         endianness: Endianness,
     ) -> None:
-        assert -0x8000 <= value.w <= 0x7FFF
+        assert -0x8000 <= value.texture_index <= 0x7FFF
         assert 0 <= value.num_vertices <= 0xFFFF
         assert 0 <= value.num_triangle_strips <= 0xFFFF
         binary_writer.write_u32(value.flags, endianness)
-        binary_writer.write_s16(value.w, endianness)
+        binary_writer.write_s16(value.texture_index, endianness)
         binary_writer.write_u16(value.num_vertices, endianness)
         binary_writer.write_u16(value.num_triangle_strips, endianness)
-        expected_size = calculate_size(value.flags, value.w) - 4 - 2 - 2 - 2
+        expected_size = calculate_size(value.flags, value.texture_index) - 4 - 2 - 2 - 2
         assert len(value.data) == expected_size
         binary_writer.write(value.data)
 
@@ -448,7 +462,7 @@ class VertexBuffer(BinRead, BinWrite):
     ) -> "VertexBuffer":
         mesh_descriptor = args
         num_vertices = mesh_descriptor.num_vertices
-        w = mesh_descriptor.w
+        texture_index = mesh_descriptor.texture_index
         flags = mesh_descriptor.flags
         positions = binary_reader.read_list(
             num_vertices,
@@ -477,7 +491,7 @@ class VertexBuffer(BinRead, BinWrite):
             )
             normals_or_colors = VertexColors(colors)
         uvs = None
-        if w >= 0:
+        if texture_index >= 0:
             uvs = binary_reader.read_list(
                 num_vertices,
                 lambda b, a, e: BinaryReader.read_tuple_2(b, read_s16_float, a, e),
@@ -497,7 +511,7 @@ class VertexBuffer(BinRead, BinWrite):
         mesh_descriptor = args
         num_vertices = mesh_descriptor.num_vertices
         assert 0 <= num_vertices <= 0xFFFF
-        w = mesh_descriptor.w
+        texture_index = mesh_descriptor.texture_index
         flags = mesh_descriptor.flags
         assert len(value.positions) == num_vertices
         binary_writer.write_list(
@@ -530,7 +544,7 @@ class VertexBuffer(BinRead, BinWrite):
                 endianness,
             )
 
-        if w >= 0:
+        if texture_index >= 0:
             assert value.uvs is not None
             assert len(value.uvs) == num_vertices
             binary_writer.write_list(
@@ -1432,15 +1446,24 @@ class TexturesPc(BinRead, BinWrite):
 
 @dataclass
 class BininfoBin(BinRead, BinWrite):
-    groups: list[list[str]]
+    object_shape_names: list[str]
+    sub_object_names: list[str]
+    camera_names: list[str]
+    texture_livery_sets: list[str]
+    reserved4: list[str]
+    scene_link_type_names: list[str]
+    light_names: list[str]
+    surface_or_zone_types: list[str]
+    reserved8: list[str]
+    effect_attachment_names: list[str]
+    reserved10: list[str]
+    damage_names: list[str]
 
     @classmethod
     def binread(
         cls, binary_reader: BinaryReader, args: None, endianness: Endianness
     ) -> "BininfoBin":
-        groups = []
-        size = binary_reader.read_u32(endianness)
-        for _ in range(12):
+        def read_group() -> list[str]:
             strings = []
             num_strings = binary_reader.read_u32(endianness)
             for _ in range(num_strings):
@@ -1450,8 +1473,35 @@ class BininfoBin(BinRead, BinWrite):
                 string = binary_reader.read_null_terminated_string()
                 binary_reader.seek(pos)
                 strings.append(string)
-            groups.append(strings)
-        return BininfoBin(groups)
+            return strings
+
+        _size = binary_reader.read_u32(endianness)
+        object_shape_names = read_group()
+        sub_object_names = read_group()
+        camera_names = read_group()
+        texture_livery_sets = read_group()
+        reserved4 = read_group()
+        scene_link_type_names = read_group()
+        light_names = read_group()
+        surface_or_zone_types = read_group()
+        reserved8 = read_group()
+        effect_attachment_names = read_group()
+        reserved10 = read_group()
+        damage_names = read_group()
+        return BininfoBin(
+            object_shape_names=object_shape_names,
+            sub_object_names=sub_object_names,
+            camera_names=camera_names,
+            texture_livery_sets=texture_livery_sets,
+            reserved4=reserved4,
+            scene_link_type_names=scene_link_type_names,
+            light_names=light_names,
+            surface_or_zone_types=surface_or_zone_types,
+            reserved8=reserved8,
+            effect_attachment_names=effect_attachment_names,
+            reserved10=reserved10,
+            damage_names=damage_names,
+        )
 
     @classmethod
     def binwrite(
@@ -1461,12 +1511,25 @@ class BininfoBin(BinRead, BinWrite):
         args: None,
         endianness: Endianness,
     ) -> None:
-        assert len(value.groups) == 12
+        string_groups = (
+            value.object_shape_names,
+            value.sub_object_names,
+            value.camera_names,
+            value.texture_livery_sets,
+            value.reserved4,
+            value.scene_link_type_names,
+            value.light_names,
+            value.surface_or_zone_types,
+            value.reserved8,
+            value.effect_attachment_names,
+            value.reserved10,
+            value.damage_names,
+        )
         end_of_header = (
-            4 + 4 * len(value.groups) + 4 * sum(len(x) for x in value.groups)
+            4 + 4 * len(string_groups) + 4 * sum(len(group) for group in string_groups)
         )
         binary_writer.write_u32(0, endianness)
-        for group in value.groups:
+        for group in string_groups:
             binary_writer.write_u32(len(group), endianness)  # num_strings
             for string in group:
                 pos = binary_writer.tell()

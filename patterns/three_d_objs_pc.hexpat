@@ -16,8 +16,8 @@ struct ObjectThing {
 
 struct Object {
     float transformation[12]; // 3x4 row-major transformation matrix.
-    ObjectThing visible;
-    ObjectThing shadow;
+    ObjectThing lod_near;
+    ObjectThing lod_far;
     u32 u;
     std::assert(u == 0, "u != 0");
     u32 v;
@@ -29,7 +29,7 @@ struct Object {
 fn calculate_sum(auto arr) {
     u32 sum = 0;
     for (u32 i = 0, i < std::core::member_count(arr), i += 1) {
-        sum += arr[i].visible.length + arr[i].shadow.length;
+        sum += arr[i].lod_near.length + arr[i].lod_far.length;
     }
     return sum;
 };

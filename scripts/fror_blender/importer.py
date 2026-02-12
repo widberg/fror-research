@@ -193,7 +193,7 @@ def import_fror_scene(
             for loop_index, vertex_index in enumerate(loop_vertex_indices):
                 uv_layer.data[loop_index].uv = uvs[vertex_index]
 
-        texture_index = mesh_descriptor.w
+        texture_index = mesh_descriptor.texture_index
         if texture_index != NO_TEXTURE_INDEX:
             assert 0 <= texture_index < len(packed_materials)
             mesh.materials.append(packed_materials[texture_index])

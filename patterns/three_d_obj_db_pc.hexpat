@@ -4,9 +4,9 @@ import std.sys;
 // The string "3d objects scene definitions file is corrupted" associated with the `3dobjdb.pc`
 // files implies that `3dobjdb.pc` files are 3d objects scene definitions files.
 
-struct ThreeDObjDbPcEntryEntry {
+struct ThreeDObjDbPcEntryTransform {
     float floats[15];
-    u32 data[23-15];
+    u32 data[23 - 15];
 };
 
 struct ThreeDObjDbPcEntryEntry2 {
@@ -37,37 +37,39 @@ struct ThreeDObjDbPcEntryEntry5 {
     }
 };
 
-struct ThreeDObjDbPcEntryEntry6 {
+struct ThreeDObjDbPcEntryPivotData {
     float a[7];
 };
 
-struct ThreeDObjDbPcEntryEntry7 {
+struct ThreeDObjDbPcEntryFlag10Entry {
     u32 a[5];
 };
 
-struct ThreeDObjDbPcEntryEntry8 {
-    float a;
+struct ThreeDObjDbPcEntryLodSwitchDistance {
+    float distance;
 };
 
-struct ThreeDObjDbPcEntryEntry9 {
-    u32 a;
+struct ThreeDObjDbPcEntryActiveSceneNode {
+    u32 scene_node_index;
 };
 
 struct ThreeDObjDbPcEntryEntry10 {
     u32 a[2];
 };
 
-struct ThreeDObjDbPcEntryEntry11Entry {
-    u32 a;
-    u32 b;
+struct ThreeDObjDbPcSceneNodeSubObjectBinding {
+    // Index into bininfo.bin group 1 (sub-object names).
+    u32 sub_object_name_index;
+    // Index into this file's scene-node namespace.
+    u32 scene_node_index;
 };
 
-struct ThreeDObjDbPcEntryEntry11 {
+struct ThreeDObjDbPcSceneNode {
     u32 flags = parent.flags;
     if (parent.flags & 0x01) {
-        u32 a;
+        u32 scene_node_index;
     } else {
-        u32 skip;
+        u32 scene_node_index;
         u16 a;
         padding[2];
         u32 b;
@@ -76,10 +78,10 @@ struct ThreeDObjDbPcEntryEntry11 {
         u32 e;
         u32 f;
         u32 g;
-        u32 num_entries;
-        ThreeDObjDbPcEntryEntry11Entry entries[num_entries];
-        u32 num_entries2;
-        ThreeDObjDbPcEntryEntry11 entries2[num_entries2];
+        u32 num_sub_object_bindings;
+        ThreeDObjDbPcSceneNodeSubObjectBinding sub_object_bindings[num_sub_object_bindings];
+        u32 num_child_nodes;
+        ThreeDObjDbPcSceneNode child_nodes[num_child_nodes];
     }
 };
 
@@ -95,10 +97,11 @@ fn all_eq(auto arr, auto val) {
 struct ThreeDObjDbPcEntry {
     s32 check[4];
     std::assert(all_eq(check, -1), "check != {-1, -1, -1, -1}");
-    u32 index;
-    u8 num_entries;
+    // Index into bininfo.bin group 0 (object shape names).
+    u32 object_shape_name_index;
+    u8 num_transforms;
     padding[3];
-    ThreeDObjDbPcEntryEntry entries[num_entries];
+    ThreeDObjDbPcEntryTransform transforms[num_transforms];
     u32 num_entries2;
     ThreeDObjDbPcEntryEntry2 entries2[num_entries2];
     u32 num_entries3;
@@ -112,11 +115,11 @@ struct ThreeDObjDbPcEntry {
     u32 flags;
     if (flags & 0x04) {
         u32 num_entries6;
-        ThreeDObjDbPcEntryEntry6 entries6[num_entries6];
+        ThreeDObjDbPcEntryPivotData entries6[num_entries6];
     }
     if (flags & 0x10) {
         u32 num_entries7;
-        ThreeDObjDbPcEntryEntry7 entries7[num_entries7];
+        ThreeDObjDbPcEntryFlag10Entry entries7[num_entries7];
     }
     if (flags & 0x02) {
         // FIXME
@@ -126,14 +129,14 @@ struct ThreeDObjDbPcEntry {
         // FIXME
         u32 fixme[-1];
     }
-    u8 num_entries8;
+    u8 num_lod_switch_distances;
     padding[3];
-    ThreeDObjDbPcEntryEntry8 entries8[num_entries8];
-    u32 a;
-    u32 b;
-    u8 num_entries9;
+    ThreeDObjDbPcEntryLodSwitchDistance lod_switch_distances[num_lod_switch_distances];
+    u32 scene_node_count;
+    u32 scene_node_capacity;
+    u8 num_active_scene_nodes;
     padding[3];
-    ThreeDObjDbPcEntryEntry9 entries9[num_entries9];
+    ThreeDObjDbPcEntryActiveSceneNode active_scene_nodes[num_active_scene_nodes];
     u32 c;
     u16 d;
     padding[2];
@@ -142,9 +145,9 @@ struct ThreeDObjDbPcEntry {
     u8 num_entries10;
     padding[3];
     ThreeDObjDbPcEntryEntry10 entries10[num_entries10];
-    u8 num_entries11;
+    u8 num_root_scene_nodes;
     padding[3];
-    ThreeDObjDbPcEntryEntry11 entries11[num_entries11];
+    ThreeDObjDbPcSceneNode root_scene_nodes[num_root_scene_nodes];
 };
 
 struct ThreeDObjDbPcEntry2 {
@@ -180,7 +183,7 @@ struct ThreeDObjDbPcEntry6 {
 };
 
 struct ThreeDObjDbPc {
-    u32 a;
+    u32 file_format_version;
     u32 num_entries;
     u32 c;
     u32 d;
@@ -197,7 +200,7 @@ struct ThreeDObjDbPc {
     u32 o;
     u32 num_entries2;
     u32 q;
-    if (a > 17) {
+    if (file_format_version > 17) {
         u32 r;
         u32 s;
     }
