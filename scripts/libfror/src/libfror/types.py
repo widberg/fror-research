@@ -1712,8 +1712,8 @@ THREE_D_OBJ_DB_PC_ENTRY_FIXME_FLAG_02 = 0x02
 THREE_D_OBJ_DB_PC_ENTRY_HAS_PIVOT_DATA = 0x04
 THREE_D_OBJ_DB_PC_ENTRY_FIXME_FLAG_08 = 0x08
 THREE_D_OBJ_DB_PC_ENTRY_HAS_FLAG10_ENTRIES = 0x10
-THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_GRID = 0xFFFF
-THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY = 2
+THREE_D_OBJ_DB_PC_SCENE_NODE_GROUP_GRID = 0xFFFF
+THREE_D_OBJ_DB_PC_SCENE_NODE_GROUP_OVERLAY = 2
 
 
 @dataclass
@@ -1819,7 +1819,7 @@ class ThreeDObjDbPcEntryEntry4(BinRead, BinWrite):
 
 
 @dataclass
-class ThreeDObjDbPcEntryEntry5(BinRead, BinWrite):
+class ThreeDObjDbPcSceneNodeGroupTransform(BinRead, BinWrite):
     scene_node_index: int
     scene_node_group: int
     c: int
@@ -1831,7 +1831,7 @@ class ThreeDObjDbPcEntryEntry5(BinRead, BinWrite):
     @classmethod
     def binread(
         cls, binary_reader: BinaryReader, args: None, endianness: Endianness
-    ) -> "ThreeDObjDbPcEntryEntry5":
+    ) -> "ThreeDObjDbPcSceneNodeGroupTransform":
         scene_node_index = binary_reader.read_u32(endianness)
         scene_node_group = binary_reader.read_u16(endianness)
         c = binary_reader.read_u16(endianness)
@@ -1841,7 +1841,7 @@ class ThreeDObjDbPcEntryEntry5(BinRead, BinWrite):
         yaw = binary_reader.read_float(endianness)
         h = binary_reader.read_u32(endianness)
         i = binary_reader.read_u32(endianness)
-        return ThreeDObjDbPcEntryEntry5(
+        return ThreeDObjDbPcSceneNodeGroupTransform(
             scene_node_index,
             scene_node_group,
             c,
@@ -1855,7 +1855,7 @@ class ThreeDObjDbPcEntryEntry5(BinRead, BinWrite):
     def binwrite(
         cls,
         binary_writer: BinaryWriter,
-        value: "ThreeDObjDbPcEntryEntry5",
+        value: "ThreeDObjDbPcSceneNodeGroupTransform",
         args: None,
         endianness: Endianness,
     ) -> None:
@@ -1873,12 +1873,10 @@ class ThreeDObjDbPcEntryEntry5(BinRead, BinWrite):
         return y_up_to_z_up(self.translation)
 
     def is_grid_group(self) -> bool:
-        return self.scene_node_group == THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_GRID
+        return self.scene_node_group == THREE_D_OBJ_DB_PC_SCENE_NODE_GROUP_GRID
 
     def is_overlay_group(self) -> bool:
-        return (
-            self.scene_node_group == THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY
-        )
+        return self.scene_node_group == THREE_D_OBJ_DB_PC_SCENE_NODE_GROUP_OVERLAY
 
 
 @dataclass
@@ -2089,7 +2087,7 @@ class ThreeDObjDbPcEntry(BinRead, BinWrite):
     entries2: list[ThreeDObjDbPcEntryEntry2]
     entries3: list[ThreeDObjDbPcEntryEntry3]
     entries4: list[ThreeDObjDbPcEntryEntry4]
-    entries5: list[ThreeDObjDbPcEntryEntry5]
+    scene_node_group_transforms: list[ThreeDObjDbPcSceneNodeGroupTransform]
     flags: int
     entries6: list[ThreeDObjDbPcEntryPivotData]
     entries7: list[ThreeDObjDbPcEntryFlag10Entry]
@@ -2128,10 +2126,13 @@ class ThreeDObjDbPcEntry(BinRead, BinWrite):
         entries4 = binary_reader.read_list(
             num_entries4, ThreeDObjDbPcEntryEntry4.binread, None, endianness
         )
-        num_entries5 = binary_reader.read_u16(endianness)
+        num_scene_node_group_transforms = binary_reader.read_u16(endianness)
         binary_reader.skip(2)
-        entries5 = binary_reader.read_list(
-            num_entries5, ThreeDObjDbPcEntryEntry5.binread, None, endianness
+        scene_node_group_transforms = binary_reader.read_list(
+            num_scene_node_group_transforms,
+            ThreeDObjDbPcSceneNodeGroupTransform.binread,
+            None,
+            endianness,
         )
         flags = binary_reader.read_u32(endianness)
         entries6: list[ThreeDObjDbPcEntryPivotData] = []
@@ -2185,7 +2186,7 @@ class ThreeDObjDbPcEntry(BinRead, BinWrite):
             entries2,
             entries3,
             entries4,
-            entries5,
+            scene_node_group_transforms,
             flags,
             entries6,
             entries7,
@@ -2237,11 +2238,14 @@ class ThreeDObjDbPcEntry(BinRead, BinWrite):
             value.entries4, ThreeDObjDbPcEntryEntry4.binwrite, None, endianness
         )
 
-        assert len(value.entries5) <= 0xFFFF
-        binary_writer.write_u16(len(value.entries5), endianness)
+        assert len(value.scene_node_group_transforms) <= 0xFFFF
+        binary_writer.write_u16(len(value.scene_node_group_transforms), endianness)
         binary_writer.write(b"\0" * 2)
         binary_writer.write_list(
-            value.entries5, ThreeDObjDbPcEntryEntry5.binwrite, None, endianness
+            value.scene_node_group_transforms,
+            ThreeDObjDbPcSceneNodeGroupTransform.binwrite,
+            None,
+            endianness,
         )
 
         binary_writer.write_u32(value.flags, endianness)
@@ -2461,7 +2465,7 @@ class ThreeDObjDbPcEntry6(BinRead, BinWrite):
 @dataclass
 class ThreeDObjDbPc(BinRead, BinWrite):
     file_format_version: int
-    entries: list[ThreeDObjDbPcEntry]
+    object_shape_entries: list[ThreeDObjDbPcEntry]
     c: int
     d: int
     e: int
@@ -2491,7 +2495,7 @@ class ThreeDObjDbPc(BinRead, BinWrite):
         cls, binary_reader: BinaryReader, args: None, endianness: Endianness
     ) -> "ThreeDObjDbPc":
         file_format_version = binary_reader.read_u32(endianness)
-        num_entries = binary_reader.read_u32(endianness)
+        num_object_shape_entries = binary_reader.read_u32(endianness)
         c = binary_reader.read_u32(endianness)
         d = binary_reader.read_u32(endianness)
         e = binary_reader.read_u32(endianness)
@@ -2514,8 +2518,11 @@ class ThreeDObjDbPc(BinRead, BinWrite):
             r = binary_reader.read_u32(endianness)
             s = binary_reader.read_u32(endianness)
 
-        entries = binary_reader.read_list(
-            num_entries, ThreeDObjDbPcEntry.binread, None, endianness
+        object_shape_entries = binary_reader.read_list(
+            num_object_shape_entries,
+            ThreeDObjDbPcEntry.binread,
+            None,
+            endianness,
         )
 
         entries2: list[int] = []
@@ -2548,7 +2555,7 @@ class ThreeDObjDbPc(BinRead, BinWrite):
 
         return ThreeDObjDbPc(
             file_format_version,
-            entries,
+            object_shape_entries,
             c,
             d,
             e,
@@ -2583,7 +2590,7 @@ class ThreeDObjDbPc(BinRead, BinWrite):
         endianness: Endianness,
     ) -> None:
         binary_writer.write_u32(value.file_format_version, endianness)
-        binary_writer.write_u32(len(value.entries), endianness)
+        binary_writer.write_u32(len(value.object_shape_entries), endianness)
         binary_writer.write_u32(value.c, endianness)
         binary_writer.write_u32(value.d, endianness)
         binary_writer.write_u32(value.e, endianness)
@@ -2610,7 +2617,10 @@ class ThreeDObjDbPc(BinRead, BinWrite):
             assert value.s is None
 
         binary_writer.write_list(
-            value.entries, ThreeDObjDbPcEntry.binwrite, None, endianness
+            value.object_shape_entries,
+            ThreeDObjDbPcEntry.binwrite,
+            None,
+            endianness,
         )
 
         if len(value.entries2) != 0:

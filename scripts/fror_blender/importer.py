@@ -3,16 +3,13 @@ from pathlib import Path
 from uuid import uuid4
 
 import bpy
-from mathutils import Matrix
 from bpy.types import Operator
 from bpy_extras.io_utils import ImportHelper
 
 from .modules.libfror.binrw import Endianness
 from .modules.libfror.types import (
     THREE_D_OBJ_DB_PC_SCENE_NODE_INDEX_ONLY,
-    THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_GRID,
-    THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY,
-    MESH_DESCRIPTOR_FLAG_OVERLAY,
+    THREE_D_OBJ_DB_PC_SCENE_NODE_GROUP_GRID,
     BininfoBin,
     TexturesPc,
     Vec3f,
@@ -37,7 +34,7 @@ SCENE_NODE_INDEX_PROP = "fror_scene_node_index"
 
 
 @dataclass
-class SceneNodeTransformsFromEntries5:
+class SceneNodeTransformsFromSceneNodeGroupTransforms:
     scene_node_translations: dict[int, Vec3f]
     scene_node_yaws: dict[int, float]
     scene_node_groups: dict[int, int]
@@ -55,7 +52,6 @@ class SceneNodeImportState:
     mesh_indices_to_scene_node_indices: list[int | None]
     scene_node_objects: list[bpy.types.Object]
     scene_node_labels: dict[int, str]
-    overlay_scene_node_indices: set[int]
 
 
 def _safe_indexed_name(names: list[str], index: int) -> str | None:
@@ -69,30 +65,6 @@ def _name_suffix(name: str) -> str:
     for char in '\\/:*?"<>|\r\n\t':
         sanitized = sanitized.replace(char, "_")
     return sanitized
-
-
-def _mesh_descriptor_is_overlay(mesh_descriptor_flags: int) -> bool:
-    return (mesh_descriptor_flags & MESH_DESCRIPTOR_FLAG_OVERLAY) != 0
-
-
-def _collect_overlay_scene_node_indices(
-    three_d_objs_pc: ThreeDObjsPc,
-    mesh_indices_to_scene_node_indices: list[int | None],
-    scene_node_groups: dict[int, int],
-) -> set[int]:
-    overlay_scene_node_indices: set[int] = set()
-    for mesh_index, scene_node_index in enumerate(mesh_indices_to_scene_node_indices):
-        if scene_node_index is None:
-            continue
-        if (
-            scene_node_groups.get(scene_node_index)
-            != THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY
-        ):
-            continue
-        mesh_descriptor = three_d_objs_pc.mesh_descriptors[mesh_index]
-        if _mesh_descriptor_is_overlay(mesh_descriptor.flags):
-            overlay_scene_node_indices.add(scene_node_index)
-    return overlay_scene_node_indices
 
 
 def _mesh_indices_to_scene_node_indices(
@@ -139,7 +111,7 @@ def _collect_scene_node_hierarchy(
         for child_node in scene_node.child_nodes:
             visit_scene_node(child_node, flags, scene_node_index)
 
-    for entry in three_d_obj_db_pc.entries:
+    for entry in three_d_obj_db_pc.object_shape_entries:
         for root_scene_node in entry.root_scene_nodes:
             visit_scene_node(root_scene_node, entry.flags, None)
 
@@ -151,9 +123,9 @@ def _build_scene_node_index_aliases(
     num_scene_nodes: int,
 ) -> dict[int, int]:
     scene_node_index_aliases: dict[int, int] = {}
-    num_entries = len(three_d_obj_db_pc.entries)
-    for entry_index in range(min(num_entries, num_scene_nodes)):
-        entry = three_d_obj_db_pc.entries[entry_index]
+    num_object_shape_entries = len(three_d_obj_db_pc.object_shape_entries)
+    for entry_index in range(min(num_object_shape_entries, num_scene_nodes)):
+        entry = three_d_obj_db_pc.object_shape_entries[entry_index]
         if (entry.flags & THREE_D_OBJ_DB_PC_SCENE_NODE_INDEX_ONLY) == 0:
             continue
         if len(entry.root_scene_nodes) == 0:
@@ -167,17 +139,19 @@ def _build_scene_node_index_aliases(
     return scene_node_index_aliases
 
 
-def _collect_scene_node_transforms_from_entries5(
+def _collect_scene_node_transforms_from_scene_node_group_transforms(
     three_d_obj_db_pc: ThreeDObjDbPc,
     three_d_objs_pc: ThreeDObjsPc,
     num_scene_nodes: int,
-) -> SceneNodeTransformsFromEntries5:
+) -> SceneNodeTransformsFromSceneNodeGroupTransforms:
     scene_node_transform_candidates: dict[int, set[SceneNodeTransformCandidate]] = {}
     grid_group_reference_z: float | None = None
-    for entry in three_d_obj_db_pc.entries:
-        for entry5 in entry.entries5:
-            if entry5.is_grid_group():
-                grid_group_reference_z = entry5.translation_z_up()[2]
+    for entry in three_d_obj_db_pc.object_shape_entries:
+        for scene_node_group_transform in entry.scene_node_group_transforms:
+            if scene_node_group_transform.is_grid_group():
+                grid_group_reference_z = scene_node_group_transform.translation_z_up()[
+                    2
+                ]
                 break
         if grid_group_reference_z is not None:
             break
@@ -187,17 +161,17 @@ def _collect_scene_node_transforms_from_entries5(
         num_scene_nodes,
     )
 
-    for entry in three_d_obj_db_pc.entries:
-        for entry5 in entry.entries5:
-            scene_node_index = entry5.scene_node_index
+    for entry in three_d_obj_db_pc.object_shape_entries:
+        for scene_node_group_transform in entry.scene_node_group_transforms:
+            scene_node_index = scene_node_group_transform.scene_node_index
             if scene_node_index < 0 or scene_node_index >= num_scene_nodes:
                 continue
             scene_node_index = scene_node_index_aliases.get(
                 scene_node_index,
                 scene_node_index,
             )
-            translation = entry5.translation_z_up()
-            if entry5.is_grid_group():
+            translation = scene_node_group_transform.translation_z_up()
+            if scene_node_group_transform.is_grid_group():
                 scene_node_entry = three_d_objs_pc.entries[scene_node_index]
                 translation = (
                     scene_node_entry.grid_xy()[0],
@@ -212,8 +186,8 @@ def _collect_scene_node_transforms_from_entries5(
                 )
             scene_node_transform = SceneNodeTransformCandidate(
                 translation=translation,
-                yaw=entry5.yaw,
-                scene_node_group=entry5.scene_node_group,
+                yaw=scene_node_group_transform.yaw,
+                scene_node_group=scene_node_group_transform.scene_node_group,
             )
             candidates = scene_node_transform_candidates.setdefault(
                 scene_node_index, set()
@@ -227,8 +201,7 @@ def _collect_scene_node_transforms_from_entries5(
         preferred_candidates = [
             candidate
             for candidate in candidates
-            if candidate.scene_node_group
-            != THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_GRID
+            if candidate.scene_node_group != THREE_D_OBJ_DB_PC_SCENE_NODE_GROUP_GRID
         ]
         if len(preferred_candidates) == 1:
             preferred_candidate = preferred_candidates[0]
@@ -248,7 +221,7 @@ def _collect_scene_node_transforms_from_entries5(
             scene_node_yaws[scene_node_index] = scene_node_yaw
             scene_node_groups[scene_node_index] = scene_node_group
 
-    return SceneNodeTransformsFromEntries5(
+    return SceneNodeTransformsFromSceneNodeGroupTransforms(
         scene_node_translations=scene_node_translations,
         scene_node_yaws=scene_node_yaws,
         scene_node_groups=scene_node_groups,
@@ -324,7 +297,7 @@ def _collect_scene_node_labels(
         for child_node in scene_node.child_nodes:
             visit_scene_node(child_node, flags, object_shape_name, False)
 
-    for entry in three_d_obj_db_pc.entries:
+    for entry in three_d_obj_db_pc.object_shape_entries:
         object_shape_name = _safe_indexed_name(
             bininfo_bin.object_shape_names,
             entry.object_shape_name_index,
@@ -534,31 +507,30 @@ def _build_scene_node_import_state(
     scene_node_translations, scene_node_parents = _collect_scene_node_hierarchy(
         three_d_obj_pc.three_d_obj_db_pc
     )
-    scene_node_transforms_from_entries5 = _collect_scene_node_transforms_from_entries5(
-        three_d_obj_pc.three_d_obj_db_pc,
-        three_d_objs_pc,
-        len(three_d_objs_pc.entries),
+    scene_node_transforms_from_scene_node_group_transforms = (
+        _collect_scene_node_transforms_from_scene_node_group_transforms(
+            three_d_obj_pc.three_d_obj_db_pc,
+            three_d_objs_pc,
+            len(three_d_objs_pc.entries),
+        )
     )
     for (
         scene_node_index,
         scene_node_translation,
-    ) in scene_node_transforms_from_entries5.scene_node_translations.items():
+    ) in (
+        scene_node_transforms_from_scene_node_group_transforms.scene_node_translations.items()
+    ):
         scene_node_translations[scene_node_index] = scene_node_translation
     scene_node_labels = _collect_scene_node_labels(
         three_d_obj_pc.three_d_obj_db_pc,
         three_d_obj_pc.bininfo_bin,
         len(three_d_objs_pc.entries),
     )
-    overlay_scene_node_indices = _collect_overlay_scene_node_indices(
-        three_d_objs_pc,
-        mesh_indices_to_scene_node_indices,
-        scene_node_transforms_from_entries5.scene_node_groups,
-    )
     scene_node_objects = _create_scene_node_objects(
         target_collection,
         len(three_d_objs_pc.entries),
         scene_node_translations,
-        scene_node_transforms_from_entries5.scene_node_yaws,
+        scene_node_transforms_from_scene_node_group_transforms.scene_node_yaws,
         scene_node_parents,
         scene_node_labels,
     )
@@ -566,7 +538,6 @@ def _build_scene_node_import_state(
         mesh_indices_to_scene_node_indices=mesh_indices_to_scene_node_indices,
         scene_node_objects=scene_node_objects,
         scene_node_labels=scene_node_labels,
-        overlay_scene_node_indices=overlay_scene_node_indices,
     )
 
 
@@ -583,7 +554,6 @@ def _import_mesh_objects(
     )
     scene_node_objects = scene_node_import_state.scene_node_objects
     scene_node_labels = scene_node_import_state.scene_node_labels
-    overlay_scene_node_indices = scene_node_import_state.overlay_scene_node_indices
 
     for i, (
         vertex_buffer,
@@ -610,9 +580,6 @@ def _import_mesh_objects(
         target_collection.objects.link(obj)
         if scene_node_index is not None:
             obj.parent = scene_node_objects[scene_node_index]
-            if scene_node_index in overlay_scene_node_indices:
-                # Overlays are local decals and should follow the scene-node transform.
-                obj.matrix_parent_inverse = Matrix.Identity(4)
 
         vertices = vertex_buffer_z_up_v_up.positions
         edges: list[tuple[int, int]] = []

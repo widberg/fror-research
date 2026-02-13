@@ -28,7 +28,7 @@ struct ThreeDObjDbPcEntryEntry4 {
     u32 a[2];
 };
 
-struct ThreeDObjDbPcEntryEntry5 {
+struct ThreeDObjDbPcSceneNodeGroupTransform {
     u32 scene_node_index;
     u16 scene_node_group;
     u16 c;
@@ -104,9 +104,9 @@ struct ThreeDObjDbPcEntry {
     u8 num_entries4;
     padding[3];
     ThreeDObjDbPcEntryEntry4 entries4[num_entries4];
-    u16 num_entries5;
+    u16 num_scene_node_group_transforms;
     padding[2];
-    ThreeDObjDbPcEntryEntry5 entries5[num_entries5];
+    ThreeDObjDbPcSceneNodeGroupTransform scene_node_group_transforms[num_scene_node_group_transforms];
     u32 flags;
     if (flags & THREE_D_OBJ_DB_PC_ENTRY_HAS_PIVOT_DATA) {
         u32 num_entries6;
@@ -175,7 +175,7 @@ struct ThreeDObjDbPcEntry6 {
 
 struct ThreeDObjDbPc {
     u32 file_format_version;
-    u32 num_entries;
+    u32 num_object_shape_entries;
     u32 c;
     u32 d;
     u32 e;
@@ -195,7 +195,7 @@ struct ThreeDObjDbPc {
         u32 r;
         u32 s;
     }
-    ThreeDObjDbPcEntry entries[num_entries];
+    ThreeDObjDbPcEntry object_shape_entries[num_object_shape_entries];
     if (num_entries2 != 0) {
         u32 num_entries3;
         u32 num_entries4;
