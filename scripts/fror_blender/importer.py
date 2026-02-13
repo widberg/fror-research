@@ -197,6 +197,8 @@ def _collect_scene_node_transforms_from_scene_node_group_transforms(
     scene_node_translations: dict[int, Vec3f] = {}
     scene_node_yaws: dict[int, float] = {}
     scene_node_groups: dict[int, int] = {}
+    # Something weird going on with the aliases and this band-aids over it
+    # Usually the first few nodes that get proxied need this
     for scene_node_index, candidates in scene_node_transform_candidates.items():
         preferred_candidates = [
             candidate
