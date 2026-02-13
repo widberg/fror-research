@@ -13,6 +13,7 @@ from .modules.libfror.types import (
     THREE_D_OBJ_DB_PC_SCENE_NODE_INDEX_ONLY,
     THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_GRID,
     THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY,
+    MESH_DESCRIPTOR_FLAG_GRID_TRANSLATION_XY,
     MESH_DESCRIPTOR_FLAG_OVERLAY,
     BininfoBin,
     TexturesPc,
@@ -37,7 +38,6 @@ VERTEX_COLOR_MATERIAL_NAME_PREFIX = "fror_vertex_color_"
 SOURCE_DIRECTORY_PROP = "fror_source_directory"
 MESH_INDEX_PROP = "fror_mesh_index"
 SCENE_NODE_INDEX_PROP = "fror_scene_node_index"
-GRID_EPSILON = 0.01
 SCENE_NODE_GROUP_BASELINE_A = 0
 SCENE_NODE_GROUP_BASELINE_B = 1
 
@@ -100,27 +100,6 @@ def _collect_overlay_scene_node_indices(
         if _mesh_descriptor_is_overlay(mesh_descriptor.flags):
             overlay_scene_node_indices.add(scene_node_index)
     return overlay_scene_node_indices
-
-
-def _translation_with_grid_xy(
-    translation: Vec3f,
-    grid_xy: Vec2f,
-) -> Vec3f:
-    return (grid_xy[0], grid_xy[1], translation[2])
-
-
-def _apply_entries5_grid_correction(
-    translation: Vec3f,
-    scene_node_entry: ThreeDObjsPcEntry,
-) -> Vec3f:
-    scene_node_grid_xy = scene_node_entry.grid_xy()
-    if scene_node_entry.has_meshes() and not scene_node_entry.grid_xy_is_zero(
-        GRID_EPSILON
-    ):
-        # For mesh-owned scene nodes, entries5 XY can drift while 3dobjs
-        # grid_translation tracks the actual tile slot.
-        return _translation_with_grid_xy(translation, scene_node_grid_xy)
-    return translation
 
 
 def _mesh_indices_to_scene_node_indices(
@@ -219,10 +198,7 @@ def _collect_scene_node_transforms_from_entries5(
             translation = entry5.translation_z_up()
             if entry5.is_grid_group():
                 scene_node_entry = three_d_objs_pc.entries[scene_node_index]
-                translation = _apply_entries5_grid_correction(
-                    translation,
-                    scene_node_entry,
-                )
+                translation = (scene_node_entry.grid_xy()[0], scene_node_entry.grid_xy()[1], translation[2])
                 scene_node_baseline_z_samples.append(translation[2])
             scene_node_transform = SceneNodeTransformCandidate(
                 translation=translation,

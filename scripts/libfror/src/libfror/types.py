@@ -135,10 +135,6 @@ class ThreeDObjsPcEntry(BinRead, BinWrite):
     def grid_xy(self) -> Vec2f:
         return self.grid_translation
 
-    def grid_xy_is_zero(self, epsilon: float) -> bool:
-        grid_x, grid_y = self.grid_xy()
-        return abs(grid_x) < epsilon and abs(grid_y) < epsilon
-
     def has_meshes(self) -> bool:
         return (self.lod_near.length + self.lod_far.length) > 0
 
@@ -162,6 +158,7 @@ def calculate_sum(arr: list[ThreeDObjsPcEntry]) -> int:
 
 
 MESH_DESCRIPTOR_FLAG_OVERLAY = 0x10000000
+MESH_DESCRIPTOR_FLAG_GRID_TRANSLATION_XY = 0x00000400
 
 
 def calculate_size(flags: int, texture_index: int) -> int:
