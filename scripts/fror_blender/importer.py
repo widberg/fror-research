@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from statistics import median
 from pathlib import Path
 from uuid import uuid4
 
@@ -13,18 +12,15 @@ from .modules.libfror.types import (
     THREE_D_OBJ_DB_PC_SCENE_NODE_INDEX_ONLY,
     THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_GRID,
     THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY,
-    MESH_DESCRIPTOR_FLAG_GRID_TRANSLATION_XY,
     MESH_DESCRIPTOR_FLAG_OVERLAY,
     BininfoBin,
     TexturesPc,
-    Vec2f,
     Vec3f,
     ThreeDObjDbPc,
     ThreeDObjDbPcSceneNode,
     ThreeDObjPc,
     ThreeDObjspPc,
     ThreeDObjsPc,
-    ThreeDObjsPcEntry,
     VertexColors,
     VertexNormals,
 )
@@ -38,8 +34,6 @@ VERTEX_COLOR_MATERIAL_NAME_PREFIX = "fror_vertex_color_"
 SOURCE_DIRECTORY_PROP = "fror_source_directory"
 MESH_INDEX_PROP = "fror_mesh_index"
 SCENE_NODE_INDEX_PROP = "fror_scene_node_index"
-SCENE_NODE_GROUP_BASELINE_A = 0
-SCENE_NODE_GROUP_BASELINE_B = 1
 
 
 @dataclass
@@ -47,7 +41,6 @@ class SceneNodeTransformsFromEntries5:
     scene_node_translations: dict[int, Vec3f]
     scene_node_yaws: dict[int, float]
     scene_node_groups: dict[int, int]
-    scene_node_baseline_z: float | None
 
 
 @dataclass(frozen=True)
@@ -73,7 +66,7 @@ def _safe_indexed_name(names: list[str], index: int) -> str | None:
 
 def _name_suffix(name: str) -> str:
     sanitized = name.strip()
-    for char in "\\/:*?\"<>|\r\n\t":
+    for char in '\\/:*?"<>|\r\n\t':
         sanitized = sanitized.replace(char, "_")
     return sanitized
 
@@ -180,7 +173,15 @@ def _collect_scene_node_transforms_from_entries5(
     num_scene_nodes: int,
 ) -> SceneNodeTransformsFromEntries5:
     scene_node_transform_candidates: dict[int, set[SceneNodeTransformCandidate]] = {}
-    scene_node_baseline_z_samples: list[float] = []
+    grid_group_reference_z: float | None = None
+    for entry in three_d_obj_db_pc.entries:
+        for entry5 in entry.entries5:
+            if entry5.is_grid_group():
+                grid_group_reference_z = entry5.translation_z_up()[2]
+                break
+        if grid_group_reference_z is not None:
+            break
+
     scene_node_index_aliases = _build_scene_node_index_aliases(
         three_d_obj_db_pc,
         num_scene_nodes,
@@ -198,19 +199,26 @@ def _collect_scene_node_transforms_from_entries5(
             translation = entry5.translation_z_up()
             if entry5.is_grid_group():
                 scene_node_entry = three_d_objs_pc.entries[scene_node_index]
-                translation = (scene_node_entry.grid_xy()[0], scene_node_entry.grid_xy()[1], translation[2])
-                scene_node_baseline_z_samples.append(translation[2])
+                translation = (
+                    scene_node_entry.grid_xy()[0],
+                    scene_node_entry.grid_xy()[1],
+                    translation[2],
+                )
+            elif grid_group_reference_z is not None:
+                translation = (
+                    translation[0],
+                    translation[1],
+                    translation[2] + grid_group_reference_z,
+                )
             scene_node_transform = SceneNodeTransformCandidate(
                 translation=translation,
                 yaw=entry5.yaw,
                 scene_node_group=entry5.scene_node_group,
             )
-            candidates = scene_node_transform_candidates.setdefault(scene_node_index, set())
+            candidates = scene_node_transform_candidates.setdefault(
+                scene_node_index, set()
+            )
             candidates.add(scene_node_transform)
-
-    scene_node_baseline_z: float | None = None
-    if len(scene_node_baseline_z_samples) > 0:
-        scene_node_baseline_z = median(scene_node_baseline_z_samples)
 
     scene_node_translations: dict[int, Vec3f] = {}
     scene_node_yaws: dict[int, float] = {}
@@ -227,15 +235,6 @@ def _collect_scene_node_transforms_from_entries5(
             scene_node_translation = preferred_candidate.translation
             scene_node_yaw = preferred_candidate.yaw
             scene_node_group = preferred_candidate.scene_node_group
-            if scene_node_baseline_z is not None and scene_node_group in (
-                SCENE_NODE_GROUP_BASELINE_A,
-                SCENE_NODE_GROUP_BASELINE_B,
-            ):
-                scene_node_translation = (
-                    scene_node_translation[0],
-                    scene_node_translation[1],
-                    scene_node_translation[2] + scene_node_baseline_z,
-                )
             scene_node_translations[scene_node_index] = scene_node_translation
             scene_node_yaws[scene_node_index] = scene_node_yaw
             scene_node_groups[scene_node_index] = scene_node_group
@@ -253,7 +252,6 @@ def _collect_scene_node_transforms_from_entries5(
         scene_node_translations=scene_node_translations,
         scene_node_yaws=scene_node_yaws,
         scene_node_groups=scene_node_groups,
-        scene_node_baseline_z=scene_node_baseline_z,
     )
 
 
@@ -310,7 +308,11 @@ def _collect_scene_node_labels(
             )
             if sub_object_name is not None:
                 target_scene_node_index = sub_object_binding.scene_node_index
-                if 0 <= sub_object_binding.scene_node_index < len(scene_node.child_nodes):
+                if (
+                    0
+                    <= sub_object_binding.scene_node_index
+                    < len(scene_node.child_nodes)
+                ):
                     target_scene_node_index = scene_node.child_nodes[
                         sub_object_binding.scene_node_index
                     ].scene_node_index
@@ -552,24 +554,6 @@ def _build_scene_node_import_state(
         mesh_indices_to_scene_node_indices,
         scene_node_transforms_from_entries5.scene_node_groups,
     )
-    scene_node_baseline_z = scene_node_transforms_from_entries5.scene_node_baseline_z
-    if scene_node_baseline_z is not None:
-        for (
-            scene_node_index,
-            scene_node_group,
-        ) in scene_node_transforms_from_entries5.scene_node_groups.items():
-            if scene_node_group != THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY:
-                continue
-            if scene_node_index not in overlay_scene_node_indices:
-                continue
-            scene_node_translation = scene_node_translations.get(scene_node_index)
-            if scene_node_translation is None:
-                continue
-            scene_node_translations[scene_node_index] = (
-                scene_node_translation[0],
-                scene_node_translation[1],
-                scene_node_translation[2] + scene_node_baseline_z,
-            )
     scene_node_objects = _create_scene_node_objects(
         target_collection,
         len(three_d_objs_pc.entries),

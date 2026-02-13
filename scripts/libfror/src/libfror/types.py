@@ -1134,8 +1134,7 @@ class PVS(BinRead, BinWrite):
             len(sector_entry.visible_sectors) for sector_entry in value.sector_entries
         )
         assert (
-            value.total_visible_sector_records
-            == expected_total_visible_sector_records
+            value.total_visible_sector_records == expected_total_visible_sector_records
         )
         binary_writer.write_u32(len(value.sector_entries), endianness)
         binary_writer.write_u32(value.total_visible_sector_records, endianness)
@@ -1878,8 +1877,7 @@ class ThreeDObjDbPcEntryEntry5(BinRead, BinWrite):
 
     def is_overlay_group(self) -> bool:
         return (
-            self.scene_node_group
-            == THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY
+            self.scene_node_group == THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY
         )
 
 
