@@ -161,6 +161,9 @@ def calculate_sum(arr: list[ThreeDObjsPcEntry]) -> int:
     return total
 
 
+MESH_DESCRIPTOR_FLAG_OVERLAY = 0x10000000
+
+
 def calculate_size(flags: int, texture_index: int) -> int:
     size = 20
     cursor_0 = (flags >> 0) & 0xFF

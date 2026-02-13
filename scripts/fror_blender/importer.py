@@ -13,6 +13,7 @@ from .modules.libfror.types import (
     THREE_D_OBJ_DB_PC_SCENE_NODE_INDEX_ONLY,
     THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_GRID,
     THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY,
+    MESH_DESCRIPTOR_FLAG_OVERLAY,
     BininfoBin,
     TexturesPc,
     Vec2f,
@@ -63,7 +64,7 @@ class SceneNodeImportState:
     mesh_indices_to_scene_node_indices: list[int | None]
     scene_node_objects: list[bpy.types.Object]
     scene_node_labels: dict[int, str]
-    scene_node_groups: dict[int, int]
+    overlay_scene_node_indices: set[int]
 
 
 def _safe_indexed_name(names: list[str], index: int) -> str | None:
@@ -79,8 +80,28 @@ def _name_suffix(name: str) -> str:
     return sanitized
 
 
-def _is_overlay_scene_node_label(scene_node_label: str | None) -> bool:
-    return scene_node_label is not None and "OVERLAY" in scene_node_label.upper()
+def _mesh_descriptor_is_overlay(mesh_descriptor_flags: int) -> bool:
+    return (mesh_descriptor_flags & MESH_DESCRIPTOR_FLAG_OVERLAY) != 0
+
+
+def _collect_overlay_scene_node_indices(
+    three_d_objs_pc: ThreeDObjsPc,
+    mesh_indices_to_scene_node_indices: list[int | None],
+    scene_node_groups: dict[int, int],
+) -> set[int]:
+    overlay_scene_node_indices: set[int] = set()
+    for mesh_index, scene_node_index in enumerate(mesh_indices_to_scene_node_indices):
+        if scene_node_index is None:
+            continue
+        if (
+            scene_node_groups.get(scene_node_index)
+            != THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY
+        ):
+            continue
+        mesh_descriptor = three_d_objs_pc.mesh_descriptors[mesh_index]
+        if _mesh_descriptor_is_overlay(mesh_descriptor.flags):
+            overlay_scene_node_indices.add(scene_node_index)
+    return overlay_scene_node_indices
 
 
 def _translation_with_grid_xy(
@@ -576,6 +597,11 @@ def _build_scene_node_import_state(
         three_d_obj_pc.bininfo_bin,
         len(three_d_objs_pc.entries),
     )
+    overlay_scene_node_indices = _collect_overlay_scene_node_indices(
+        three_d_objs_pc,
+        mesh_indices_to_scene_node_indices,
+        scene_node_transforms_from_entries5.scene_node_groups,
+    )
     scene_node_baseline_z = scene_node_transforms_from_entries5.scene_node_baseline_z
     if scene_node_baseline_z is not None:
         for (
@@ -584,8 +610,7 @@ def _build_scene_node_import_state(
         ) in scene_node_transforms_from_entries5.scene_node_groups.items():
             if scene_node_group != THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY:
                 continue
-            scene_node_label = scene_node_labels.get(scene_node_index)
-            if not _is_overlay_scene_node_label(scene_node_label):
+            if scene_node_index not in overlay_scene_node_indices:
                 continue
             scene_node_translation = scene_node_translations.get(scene_node_index)
             if scene_node_translation is None:
@@ -607,7 +632,7 @@ def _build_scene_node_import_state(
         mesh_indices_to_scene_node_indices=mesh_indices_to_scene_node_indices,
         scene_node_objects=scene_node_objects,
         scene_node_labels=scene_node_labels,
-        scene_node_groups=scene_node_transforms_from_entries5.scene_node_groups,
+        overlay_scene_node_indices=overlay_scene_node_indices,
     )
 
 
@@ -624,7 +649,7 @@ def _import_mesh_objects(
     )
     scene_node_objects = scene_node_import_state.scene_node_objects
     scene_node_labels = scene_node_import_state.scene_node_labels
-    scene_node_groups = scene_node_import_state.scene_node_groups
+    overlay_scene_node_indices = scene_node_import_state.overlay_scene_node_indices
 
     for i, (
         vertex_buffer,
@@ -651,12 +676,7 @@ def _import_mesh_objects(
         target_collection.objects.link(obj)
         if scene_node_index is not None:
             obj.parent = scene_node_objects[scene_node_index]
-            scene_node_group = scene_node_groups.get(scene_node_index)
-            scene_node_label = scene_node_labels.get(scene_node_index)
-            if (
-                scene_node_group == THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY
-                and _is_overlay_scene_node_label(scene_node_label)
-            ):
+            if scene_node_index in overlay_scene_node_indices:
                 # Overlays are local decals and should follow the scene-node transform.
                 obj.matrix_parent_inverse = Matrix.Identity(4)
 
