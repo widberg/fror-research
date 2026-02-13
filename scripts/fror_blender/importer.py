@@ -37,9 +37,7 @@ VERTEX_COLOR_MATERIAL_NAME_PREFIX = "fror_vertex_color_"
 SOURCE_DIRECTORY_PROP = "fror_source_directory"
 MESH_INDEX_PROP = "fror_mesh_index"
 SCENE_NODE_INDEX_PROP = "fror_scene_node_index"
-CELL_SIZE = 64.0
 GRID_EPSILON = 0.01
-ROW_WRAP_MIN = 128.0
 SCENE_NODE_GROUP_BASELINE_A = 0
 SCENE_NODE_GROUP_BASELINE_B = 1
 
@@ -119,32 +117,8 @@ def _apply_entries5_grid_correction(
     if scene_node_entry.has_meshes() and not scene_node_entry.grid_xy_is_zero(
         GRID_EPSILON
     ):
-        # For cut-up track tables, entries5 XY can drift while 3dobjs grid_translation
-        # tracks the actual tile slot used by mesh-owned scene nodes.
-        return _translation_with_grid_xy(translation, scene_node_grid_xy)
-
-    row_wrap_min = ROW_WRAP_MIN - GRID_EPSILON
-    if (
-        abs((scene_node_grid_xy[0] - translation[0]) - CELL_SIZE) < GRID_EPSILON
-        and abs(scene_node_grid_xy[1] - translation[1]) < GRID_EPSILON
-    ):
-        return _translation_with_grid_xy(translation, scene_node_grid_xy)
-    if (
-        abs((scene_node_grid_xy[1] - translation[1]) - CELL_SIZE) < GRID_EPSILON
-        and (translation[0] - scene_node_grid_xy[0]) >= row_wrap_min
-        and abs((translation[0] - scene_node_grid_xy[0]) % CELL_SIZE) < GRID_EPSILON
-    ):
-        return _translation_with_grid_xy(translation, scene_node_grid_xy)
-    if (
-        abs((scene_node_grid_xy[0] - translation[0]) + CELL_SIZE) < GRID_EPSILON
-        and abs(scene_node_grid_xy[1] - translation[1]) < GRID_EPSILON
-    ):
-        return _translation_with_grid_xy(translation, scene_node_grid_xy)
-    if (
-        abs((scene_node_grid_xy[1] - translation[1]) + CELL_SIZE) < GRID_EPSILON
-        and (scene_node_grid_xy[0] - translation[0]) >= row_wrap_min
-        and abs((scene_node_grid_xy[0] - translation[0]) % CELL_SIZE) < GRID_EPSILON
-    ):
+        # For mesh-owned scene nodes, entries5 XY can drift while 3dobjs
+        # grid_translation tracks the actual tile slot.
         return _translation_with_grid_xy(translation, scene_node_grid_xy)
     return translation
 
