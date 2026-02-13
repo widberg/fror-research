@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from statistics import median
 from pathlib import Path
 from uuid import uuid4
@@ -10,15 +11,20 @@ from bpy_extras.io_utils import ImportHelper
 from .modules.libfror.binrw import Endianness
 from .modules.libfror.types import (
     THREE_D_OBJ_DB_PC_SCENE_NODE_INDEX_ONLY,
+    THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_GRID,
+    THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY,
     BininfoBin,
     TexturesPc,
+    Vec2f,
+    Vec3f,
     ThreeDObjDbPc,
     ThreeDObjDbPcSceneNode,
     ThreeDObjPc,
+    ThreeDObjspPc,
     ThreeDObjsPc,
+    ThreeDObjsPcEntry,
     VertexColors,
     VertexNormals,
-    y_up_to_z_up,
 )
 
 NO_TEXTURE_INDEX = -1
@@ -30,6 +36,34 @@ VERTEX_COLOR_MATERIAL_NAME_PREFIX = "fror_vertex_color_"
 SOURCE_DIRECTORY_PROP = "fror_source_directory"
 MESH_INDEX_PROP = "fror_mesh_index"
 SCENE_NODE_INDEX_PROP = "fror_scene_node_index"
+CELL_SIZE = 64.0
+GRID_EPSILON = 0.01
+ROW_WRAP_MIN = 128.0
+SCENE_NODE_GROUP_BASELINE_A = 0
+SCENE_NODE_GROUP_BASELINE_B = 1
+
+
+@dataclass
+class SceneNodeTransformsFromEntries5:
+    scene_node_translations: dict[int, Vec3f]
+    scene_node_yaws: dict[int, float]
+    scene_node_groups: dict[int, int]
+    scene_node_baseline_z: float | None
+
+
+@dataclass(frozen=True)
+class SceneNodeTransformCandidate:
+    translation: Vec3f
+    yaw: float
+    scene_node_group: int
+
+
+@dataclass
+class SceneNodeImportState:
+    mesh_indices_to_scene_node_indices: list[int | None]
+    scene_node_objects: list[bpy.types.Object]
+    scene_node_labels: dict[int, str]
+    scene_node_groups: dict[int, int]
 
 
 def _safe_indexed_name(names: list[str], index: int) -> str | None:
@@ -45,6 +79,55 @@ def _name_suffix(name: str) -> str:
     return sanitized
 
 
+def _is_overlay_scene_node_label(scene_node_label: str | None) -> bool:
+    return scene_node_label is not None and "OVERLAY" in scene_node_label.upper()
+
+
+def _translation_with_grid_xy(
+    translation: Vec3f,
+    grid_xy: Vec2f,
+) -> Vec3f:
+    return (grid_xy[0], grid_xy[1], translation[2])
+
+
+def _apply_entries5_grid_correction(
+    translation: Vec3f,
+    scene_node_entry: ThreeDObjsPcEntry,
+) -> Vec3f:
+    scene_node_grid_xy = scene_node_entry.grid_xy()
+    if scene_node_entry.has_meshes() and not scene_node_entry.grid_xy_is_zero(
+        GRID_EPSILON
+    ):
+        # For cut-up track tables, entries5 XY can drift while 3dobjs grid_translation
+        # tracks the actual tile slot used by mesh-owned scene nodes.
+        return _translation_with_grid_xy(translation, scene_node_grid_xy)
+
+    row_wrap_min = ROW_WRAP_MIN - GRID_EPSILON
+    if (
+        abs((scene_node_grid_xy[0] - translation[0]) - CELL_SIZE) < GRID_EPSILON
+        and abs(scene_node_grid_xy[1] - translation[1]) < GRID_EPSILON
+    ):
+        return _translation_with_grid_xy(translation, scene_node_grid_xy)
+    if (
+        abs((scene_node_grid_xy[1] - translation[1]) - CELL_SIZE) < GRID_EPSILON
+        and (translation[0] - scene_node_grid_xy[0]) >= row_wrap_min
+        and abs((translation[0] - scene_node_grid_xy[0]) % CELL_SIZE) < GRID_EPSILON
+    ):
+        return _translation_with_grid_xy(translation, scene_node_grid_xy)
+    if (
+        abs((scene_node_grid_xy[0] - translation[0]) + CELL_SIZE) < GRID_EPSILON
+        and abs(scene_node_grid_xy[1] - translation[1]) < GRID_EPSILON
+    ):
+        return _translation_with_grid_xy(translation, scene_node_grid_xy)
+    if (
+        abs((scene_node_grid_xy[1] - translation[1]) + CELL_SIZE) < GRID_EPSILON
+        and (scene_node_grid_xy[0] - translation[0]) >= row_wrap_min
+        and abs((scene_node_grid_xy[0] - translation[0]) % CELL_SIZE) < GRID_EPSILON
+    ):
+        return _translation_with_grid_xy(translation, scene_node_grid_xy)
+    return translation
+
+
 def _mesh_indices_to_scene_node_indices(
     three_d_objs_pc: ThreeDObjsPc,
 ) -> list[int | None]:
@@ -52,24 +135,20 @@ def _mesh_indices_to_scene_node_indices(
     mesh_indices_to_scene_node_indices: list[int | None] = [None] * num_mesh_descriptors
 
     for scene_node_index, entry in enumerate(three_d_objs_pc.entries):
-        for lod in (entry.lod_near, entry.lod_far):
-            begin = lod.begin
-            end = begin + lod.length
-            assert 0 <= begin <= end <= num_mesh_descriptors
-            for mesh_index in range(begin, end):
-                existing_scene_node_index = mesh_indices_to_scene_node_indices[mesh_index]
-                if existing_scene_node_index is None:
-                    mesh_indices_to_scene_node_indices[mesh_index] = scene_node_index
-                else:
-                    assert existing_scene_node_index == scene_node_index
+        for mesh_index in entry.iter_mesh_descriptor_indices(num_mesh_descriptors):
+            existing_scene_node_index = mesh_indices_to_scene_node_indices[mesh_index]
+            if existing_scene_node_index is None:
+                mesh_indices_to_scene_node_indices[mesh_index] = scene_node_index
+            else:
+                assert existing_scene_node_index == scene_node_index
 
     return mesh_indices_to_scene_node_indices
 
 
 def _collect_scene_node_hierarchy(
     three_d_obj_db_pc: ThreeDObjDbPc,
-) -> tuple[dict[int, tuple[float, float, float]], dict[int, int]]:
-    scene_node_translations: dict[int, tuple[float, float, float]] = {}
+) -> tuple[dict[int, Vec3f], dict[int, int]]:
+    scene_node_translations: dict[int, Vec3f] = {}
     scene_node_parents: dict[int, int] = {}
 
     def visit_scene_node(
@@ -125,15 +204,8 @@ def _collect_scene_node_transforms_from_entries5(
     three_d_obj_db_pc: ThreeDObjDbPc,
     three_d_objs_pc: ThreeDObjsPc,
     num_scene_nodes: int,
-) -> tuple[
-    dict[int, tuple[float, float, float]],
-    dict[int, float],
-    dict[int, int],
-    float | None,
-]:
-    scene_node_transform_candidates: dict[
-        int, list[tuple[tuple[float, float, float], float, int]]
-    ] = {}
+) -> SceneNodeTransformsFromEntries5:
+    scene_node_transform_candidates: dict[int, set[SceneNodeTransformCandidate]] = {}
     scene_node_baseline_z_samples: list[float] = []
     scene_node_index_aliases = _build_scene_node_index_aliases(
         three_d_obj_db_pc,
@@ -150,103 +222,44 @@ def _collect_scene_node_transforms_from_entries5(
                 scene_node_index,
             )
             translation = entry5.translation_z_up()
-            if entry5.scene_node_group == 0xFFFF:
+            if entry5.is_grid_group():
                 scene_node_entry = three_d_objs_pc.entries[scene_node_index]
-                scene_node_grid_translation = scene_node_entry.grid_translation
-                scene_node_has_meshes = (
-                    scene_node_entry.lod_near.length + scene_node_entry.lod_far.length
-                ) > 0
-                scene_node_grid_translation_is_zero = (
-                    abs(scene_node_grid_translation[0]) < 0.01
-                    and abs(scene_node_grid_translation[1]) < 0.01
+                translation = _apply_entries5_grid_correction(
+                    translation,
+                    scene_node_entry,
                 )
-                if scene_node_has_meshes and not scene_node_grid_translation_is_zero:
-                    # For cut-up track tables, entries5 XY can drift while 3dobjs
-                    # grid_translation
-                    # tracks the actual tile slot used by mesh-owned scene nodes.
-                    translation = (
-                        scene_node_grid_translation[0],
-                        scene_node_grid_translation[1],
-                        translation[2],
-                    )
-                # Fallback seam corrections for odd placeholder cases.
-                elif (
-                    abs((scene_node_grid_translation[0] - translation[0]) - 64.0)
-                    < 0.01
-                    and abs(scene_node_grid_translation[1] - translation[1]) < 0.01
-                ):
-                    translation = (
-                        scene_node_grid_translation[0],
-                        scene_node_grid_translation[1],
-                        translation[2],
-                    )
-                elif (
-                    abs((scene_node_grid_translation[1] - translation[1]) - 64.0)
-                    < 0.01
-                    and (translation[0] - scene_node_grid_translation[0])
-                    >= (128.0 - 0.01)
-                    and abs(
-                        (translation[0] - scene_node_grid_translation[0]) % 64.0
-                    )
-                    < 0.01
-                ):
-                    translation = (
-                        scene_node_grid_translation[0],
-                        scene_node_grid_translation[1],
-                        translation[2],
-                    )
-                elif (
-                    abs((scene_node_grid_translation[0] - translation[0]) + 64.0)
-                    < 0.01
-                    and abs(scene_node_grid_translation[1] - translation[1]) < 0.01
-                ):
-                    translation = (
-                        scene_node_grid_translation[0],
-                        scene_node_grid_translation[1],
-                        translation[2],
-                    )
-                elif (
-                    abs((scene_node_grid_translation[1] - translation[1]) + 64.0)
-                    < 0.01
-                    and (scene_node_grid_translation[0] - translation[0])
-                    >= (128.0 - 0.01)
-                    and abs(
-                        (scene_node_grid_translation[0] - translation[0]) % 64.0
-                    )
-                    < 0.01
-                ):
-                    translation = (
-                        scene_node_grid_translation[0],
-                        scene_node_grid_translation[1],
-                        translation[2],
-                    )
                 scene_node_baseline_z_samples.append(translation[2])
-            yaw = entry5.yaw
-            scene_node_transform = (translation, yaw, entry5.scene_node_group)
-            candidates = scene_node_transform_candidates.setdefault(scene_node_index, [])
-            if scene_node_transform not in candidates:
-                candidates.append(scene_node_transform)
+            scene_node_transform = SceneNodeTransformCandidate(
+                translation=translation,
+                yaw=entry5.yaw,
+                scene_node_group=entry5.scene_node_group,
+            )
+            candidates = scene_node_transform_candidates.setdefault(scene_node_index, set())
+            candidates.add(scene_node_transform)
 
     scene_node_baseline_z: float | None = None
     if len(scene_node_baseline_z_samples) > 0:
         scene_node_baseline_z = median(scene_node_baseline_z_samples)
 
-    scene_node_translations: dict[int, tuple[float, float, float]] = {}
+    scene_node_translations: dict[int, Vec3f] = {}
     scene_node_yaws: dict[int, float] = {}
     scene_node_groups: dict[int, int] = {}
     for scene_node_index, candidates in scene_node_transform_candidates.items():
         preferred_candidates = [
-            (translation, yaw, b)
-            for translation, yaw, b in candidates
-            if b != 0xFFFF
+            candidate
+            for candidate in candidates
+            if candidate.scene_node_group
+            != THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_GRID
         ]
         if len(preferred_candidates) == 1:
-            (
-                scene_node_translation,
-                scene_node_yaw,
-                scene_node_group,
-            ) = preferred_candidates[0]
-            if scene_node_baseline_z is not None and scene_node_group in (0, 1):
+            preferred_candidate = preferred_candidates[0]
+            scene_node_translation = preferred_candidate.translation
+            scene_node_yaw = preferred_candidate.yaw
+            scene_node_group = preferred_candidate.scene_node_group
+            if scene_node_baseline_z is not None and scene_node_group in (
+                SCENE_NODE_GROUP_BASELINE_A,
+                SCENE_NODE_GROUP_BASELINE_B,
+            ):
                 scene_node_translation = (
                     scene_node_translation[0],
                     scene_node_translation[1],
@@ -257,20 +270,19 @@ def _collect_scene_node_transforms_from_entries5(
             scene_node_groups[scene_node_index] = scene_node_group
             continue
         if len(candidates) == 1:
-            (
-                scene_node_translation,
-                scene_node_yaw,
-                scene_node_group,
-            ) = candidates[0]
+            only_candidate = next(iter(candidates))
+            scene_node_translation = only_candidate.translation
+            scene_node_yaw = only_candidate.yaw
+            scene_node_group = only_candidate.scene_node_group
             scene_node_translations[scene_node_index] = scene_node_translation
             scene_node_yaws[scene_node_index] = scene_node_yaw
             scene_node_groups[scene_node_index] = scene_node_group
 
-    return (
-        scene_node_translations,
-        scene_node_yaws,
-        scene_node_groups,
-        scene_node_baseline_z,
+    return SceneNodeTransformsFromEntries5(
+        scene_node_translations=scene_node_translations,
+        scene_node_yaws=scene_node_yaws,
+        scene_node_groups=scene_node_groups,
+        scene_node_baseline_z=scene_node_baseline_z,
     )
 
 
@@ -369,7 +381,7 @@ def _collect_scene_node_labels(
 def _create_scene_node_objects(
     target_collection: bpy.types.Collection,
     num_scene_nodes: int,
-    scene_node_translations: dict[int, tuple[float, float, float]],
+    scene_node_translations: dict[int, Vec3f],
     scene_node_yaws: dict[int, float],
     scene_node_parents: dict[int, int],
     scene_node_labels: dict[int, str],
@@ -538,56 +550,42 @@ def _load_packed_gi_materials(
     return gi_materials
 
 
-def import_fror_scene(
-    context: bpy.types.Context,
-    directory_path: Path,
-    endianness: Endianness = Endianness.LITTLE,
-) -> None:
-    context.scene[SOURCE_DIRECTORY_PROP] = str(directory_path)
-    three_d_obj_pc = ThreeDObjPc.from_directory_path(directory_path, endianness)
-    three_d_objs_pc = three_d_obj_pc.three_d_objs_pc
-    three_d_objsp_pc = three_d_obj_pc.three_d_objsp_pc
-    textures_pc = three_d_obj_pc.textures_pc
-
-    packed_materials = _load_packed_materials(textures_pc)
-    packed_gi_materials = _load_packed_gi_materials(packed_materials)
-    target_collection = context.collection or context.scene.collection
+def _build_scene_node_import_state(
+    target_collection: bpy.types.Collection,
+    three_d_obj_pc: ThreeDObjPc,
+    three_d_objs_pc: ThreeDObjsPc,
+) -> SceneNodeImportState:
     mesh_indices_to_scene_node_indices = _mesh_indices_to_scene_node_indices(
         three_d_objs_pc
     )
     scene_node_translations, scene_node_parents = _collect_scene_node_hierarchy(
         three_d_obj_pc.three_d_obj_db_pc
     )
-    (
-        scene_node_translations_from_entries5,
-        scene_node_yaws_from_entries5,
-        scene_node_groups_from_entries5,
-        scene_node_baseline_z_from_entries5,
-    ) = (
-        _collect_scene_node_transforms_from_entries5(
-            three_d_obj_pc.three_d_obj_db_pc,
-            three_d_objs_pc,
-            len(three_d_objs_pc.entries),
-        )
+    scene_node_transforms_from_entries5 = _collect_scene_node_transforms_from_entries5(
+        three_d_obj_pc.three_d_obj_db_pc,
+        three_d_objs_pc,
+        len(three_d_objs_pc.entries),
     )
     for (
         scene_node_index,
         scene_node_translation,
-    ) in scene_node_translations_from_entries5.items():
+    ) in scene_node_transforms_from_entries5.scene_node_translations.items():
         scene_node_translations[scene_node_index] = scene_node_translation
     scene_node_labels = _collect_scene_node_labels(
         three_d_obj_pc.three_d_obj_db_pc,
         three_d_obj_pc.bininfo_bin,
         len(three_d_objs_pc.entries),
     )
-    if scene_node_baseline_z_from_entries5 is not None:
-        for scene_node_index, scene_node_group in scene_node_groups_from_entries5.items():
-            if scene_node_group != 2:
+    scene_node_baseline_z = scene_node_transforms_from_entries5.scene_node_baseline_z
+    if scene_node_baseline_z is not None:
+        for (
+            scene_node_index,
+            scene_node_group,
+        ) in scene_node_transforms_from_entries5.scene_node_groups.items():
+            if scene_node_group != THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY:
                 continue
             scene_node_label = scene_node_labels.get(scene_node_index)
-            if scene_node_label is None:
-                continue
-            if "OVERLAY" not in scene_node_label.upper():
+            if not _is_overlay_scene_node_label(scene_node_label):
                 continue
             scene_node_translation = scene_node_translations.get(scene_node_index)
             if scene_node_translation is None:
@@ -595,16 +593,38 @@ def import_fror_scene(
             scene_node_translations[scene_node_index] = (
                 scene_node_translation[0],
                 scene_node_translation[1],
-                scene_node_translation[2] + scene_node_baseline_z_from_entries5,
+                scene_node_translation[2] + scene_node_baseline_z,
             )
     scene_node_objects = _create_scene_node_objects(
         target_collection,
         len(three_d_objs_pc.entries),
         scene_node_translations,
-        scene_node_yaws_from_entries5,
+        scene_node_transforms_from_entries5.scene_node_yaws,
         scene_node_parents,
         scene_node_labels,
     )
+    return SceneNodeImportState(
+        mesh_indices_to_scene_node_indices=mesh_indices_to_scene_node_indices,
+        scene_node_objects=scene_node_objects,
+        scene_node_labels=scene_node_labels,
+        scene_node_groups=scene_node_transforms_from_entries5.scene_node_groups,
+    )
+
+
+def _import_mesh_objects(
+    target_collection: bpy.types.Collection,
+    three_d_objs_pc: ThreeDObjsPc,
+    three_d_objsp_pc: ThreeDObjspPc,
+    packed_materials: list[bpy.types.Material],
+    packed_gi_materials: list[bpy.types.Material],
+    scene_node_import_state: SceneNodeImportState,
+) -> None:
+    mesh_indices_to_scene_node_indices = (
+        scene_node_import_state.mesh_indices_to_scene_node_indices
+    )
+    scene_node_objects = scene_node_import_state.scene_node_objects
+    scene_node_labels = scene_node_import_state.scene_node_labels
+    scene_node_groups = scene_node_import_state.scene_node_groups
 
     for i, (
         vertex_buffer,
@@ -631,12 +651,11 @@ def import_fror_scene(
         target_collection.objects.link(obj)
         if scene_node_index is not None:
             obj.parent = scene_node_objects[scene_node_index]
-            scene_node_group = scene_node_groups_from_entries5.get(scene_node_index)
+            scene_node_group = scene_node_groups.get(scene_node_index)
             scene_node_label = scene_node_labels.get(scene_node_index)
             if (
-                scene_node_group == 2
-                and scene_node_label is not None
-                and "OVERLAY" in scene_node_label.upper()
+                scene_node_group == THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY
+                and _is_overlay_scene_node_label(scene_node_label)
             ):
                 # Overlays are local decals and should follow the scene-node transform.
                 obj.matrix_parent_inverse = Matrix.Identity(4)
@@ -689,6 +708,35 @@ def import_fror_scene(
             mesh.calc_tangents()
         mesh.validate(clean_customdata=False)
         mesh.update()
+
+
+def import_fror_scene(
+    context: bpy.types.Context,
+    directory_path: Path,
+    endianness: Endianness = Endianness.LITTLE,
+) -> None:
+    context.scene[SOURCE_DIRECTORY_PROP] = str(directory_path)
+    three_d_obj_pc = ThreeDObjPc.from_directory_path(directory_path, endianness)
+    three_d_objs_pc = three_d_obj_pc.three_d_objs_pc
+    three_d_objsp_pc = three_d_obj_pc.three_d_objsp_pc
+    textures_pc = three_d_obj_pc.textures_pc
+
+    packed_materials = _load_packed_materials(textures_pc)
+    packed_gi_materials = _load_packed_gi_materials(packed_materials)
+    target_collection = context.collection or context.scene.collection
+    scene_node_import_state = _build_scene_node_import_state(
+        target_collection,
+        three_d_obj_pc,
+        three_d_objs_pc,
+    )
+    _import_mesh_objects(
+        target_collection,
+        three_d_objs_pc,
+        three_d_objsp_pc,
+        packed_materials,
+        packed_gi_materials,
+        scene_node_import_state,
+    )
 
 
 class ImportFROR(Operator, ImportHelper):

@@ -38,6 +38,9 @@ THREE_D_OBJ_DB_PC_FILE_FORMAT = FileFormat("3dobjdb_pc", "data/**/3dobjdb.pc", F
 THREE_D_OBJS_PC_FILE_FORMAT = FileFormat("3dobjs_pc", "data/**/3dobjs.pc", True)
 THREE_D_OBJSP_PC_FILE_FORMAT = FileFormat("3dobjsp_pc", "data/**/3dobjsp.pc", True)
 
+Vec2f: typing.TypeAlias = tuple[float, float]
+Vec3f: typing.TypeAlias = tuple[float, float, float]
+
 
 @dataclass
 class ObjectThing(BinRead, BinWrite):
@@ -80,7 +83,7 @@ class ThreeDObjsPcEntry(BinRead, BinWrite):
     lod_far: ObjectThing
     u: int
     v: int
-    grid_translation: tuple[float, float]
+    grid_translation: Vec2f
 
     @classmethod
     def binread(
@@ -129,13 +132,33 @@ class ThreeDObjsPcEntry(BinRead, BinWrite):
             endianness,
         )
 
+    def grid_xy(self) -> Vec2f:
+        return self.grid_translation
+
+    def grid_xy_is_zero(self, epsilon: float) -> bool:
+        grid_x, grid_y = self.grid_xy()
+        return abs(grid_x) < epsilon and abs(grid_y) < epsilon
+
+    def has_meshes(self) -> bool:
+        return (self.lod_near.length + self.lod_far.length) > 0
+
+    def iter_mesh_descriptor_indices(
+        self, num_mesh_descriptors: int
+    ) -> typing.Iterator[int]:
+        for lod in (self.lod_near, self.lod_far):
+            begin = lod.begin
+            end = begin + lod.length
+            assert 0 <= begin <= end <= num_mesh_descriptors
+            for mesh_index in range(begin, end):
+                yield mesh_index
+
 
 def calculate_sum(arr: list[ThreeDObjsPcEntry]) -> int:
-    sum = 0
+    total = 0
     for i in range(len(arr)):
         elm = arr[i]
-        sum += elm.lod_near.length + elm.lod_far.length
-    return sum
+        total += elm.lod_near.length + elm.lod_far.length
+    return total
 
 
 def calculate_size(flags: int, texture_index: int) -> int:
@@ -596,19 +619,19 @@ class VertexBuffer(BinRead, BinWrite):
         return value.to_z_up_v_up()
 
 
-def y_up_to_z_up(position: tuple[float, float, float]) -> tuple[float, float, float]:
+def y_up_to_z_up(position: Vec3f) -> Vec3f:
     return (position[0], position[2], position[1])
 
 
-def z_up_to_y_up(position: tuple[float, float, float]) -> tuple[float, float, float]:
+def z_up_to_y_up(position: Vec3f) -> Vec3f:
     return (position[0], position[2], position[1])
 
 
-def v_down_to_v_up(uv: tuple[float, float]) -> tuple[float, float]:
+def v_down_to_v_up(uv: Vec2f) -> Vec2f:
     return (uv[0], 1 - uv[1])
 
 
-def v_up_to_v_down(uv: tuple[float, float]) -> tuple[float, float]:
+def v_up_to_v_down(uv: Vec2f) -> Vec2f:
     return (uv[0], 1 - uv[1])
 
 
@@ -1690,6 +1713,8 @@ THREE_D_OBJ_DB_PC_ENTRY_FIXME_FLAG_02 = 0x02
 THREE_D_OBJ_DB_PC_ENTRY_HAS_PIVOT_DATA = 0x04
 THREE_D_OBJ_DB_PC_ENTRY_FIXME_FLAG_08 = 0x08
 THREE_D_OBJ_DB_PC_ENTRY_HAS_FLAG10_ENTRIES = 0x10
+THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_GRID = 0xFFFF
+THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY = 2
 
 
 @dataclass
@@ -1799,7 +1824,7 @@ class ThreeDObjDbPcEntryEntry5(BinRead, BinWrite):
     scene_node_index: int
     scene_node_group: int
     c: int
-    translation: tuple[float, float, float]
+    translation: Vec3f
     yaw: float
     h: int
     i: int
@@ -1845,8 +1870,17 @@ class ThreeDObjDbPcEntryEntry5(BinRead, BinWrite):
         binary_writer.write_u32(value.h, endianness)
         binary_writer.write_u32(value.i, endianness)
 
-    def translation_z_up(self) -> tuple[float, float, float]:
+    def translation_z_up(self) -> Vec3f:
         return y_up_to_z_up(self.translation)
+
+    def is_grid_group(self) -> bool:
+        return self.scene_node_group == THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_GRID
+
+    def is_overlay_group(self) -> bool:
+        return (
+            self.scene_node_group
+            == THREE_D_OBJ_DB_PC_ENTRY5_SCENE_NODE_GROUP_OVERLAY
+        )
 
 
 @dataclass
@@ -1951,7 +1985,7 @@ class ThreeDObjDbPcSceneNodeSubObjectBinding(BinRead, BinWrite):
 class ThreeDObjDbPcSceneNode(BinRead, BinWrite):
     scene_node_index: int
     a: int
-    translation: tuple[float, float, float]
+    translation: Vec3f
     e: int
     f: int
     g: int
@@ -2046,7 +2080,7 @@ class ThreeDObjDbPcSceneNode(BinRead, BinWrite):
             value.child_nodes, ThreeDObjDbPcSceneNode.binwrite, (flags,), endianness
         )
 
-    def translation_z_up(self) -> tuple[float, float, float]:
+    def translation_z_up(self) -> Vec3f:
         return y_up_to_z_up(self.translation)
 
 
