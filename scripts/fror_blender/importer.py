@@ -9,7 +9,6 @@ from bpy_extras.io_utils import ImportHelper
 from .modules.libfror.binrw import Endianness
 from .modules.libfror.types import (
     THREE_D_OBJ_DB_PC_SCENE_NODE_INDEX_ONLY,
-    THREE_D_OBJ_DB_PC_SCENE_NODE_GROUP_GRID,
     BininfoBin,
     TexturesPc,
     Vec3f,
@@ -37,14 +36,6 @@ SCENE_NODE_INDEX_PROP = "fror_scene_node_index"
 class SceneNodeTransformsFromSceneNodeGroupTransforms:
     scene_node_translations: dict[int, Vec3f]
     scene_node_yaws: dict[int, float]
-    scene_node_groups: dict[int, int]
-
-
-@dataclass(frozen=True)
-class SceneNodeTransformCandidate:
-    translation: Vec3f
-    yaw: float
-    scene_node_group: int
 
 
 @dataclass
@@ -122,6 +113,9 @@ def _build_scene_node_index_aliases(
     three_d_obj_db_pc: ThreeDObjDbPc,
     num_scene_nodes: int,
 ) -> dict[int, int]:
+    # `entry_index` is the object-shape slot index (matches ThreeDObjsPc.entries).
+    # For index-only object-shape entries, root_scene_nodes[0].scene_node_index
+    # points at the real scene-node index that should receive transforms.
     scene_node_index_aliases: dict[int, int] = {}
     num_object_shape_entries = len(three_d_obj_db_pc.object_shape_entries)
     for entry_index in range(min(num_object_shape_entries, num_scene_nodes)):
@@ -144,17 +138,7 @@ def _collect_scene_node_transforms_from_scene_node_group_transforms(
     three_d_objs_pc: ThreeDObjsPc,
     num_scene_nodes: int,
 ) -> SceneNodeTransformsFromSceneNodeGroupTransforms:
-    scene_node_transform_candidates: dict[int, set[SceneNodeTransformCandidate]] = {}
-    grid_group_reference_z: float | None = None
-    for entry in three_d_obj_db_pc.object_shape_entries:
-        for scene_node_group_transform in entry.scene_node_group_transforms:
-            if scene_node_group_transform.is_grid_group():
-                grid_group_reference_z = scene_node_group_transform.translation_z_up()[
-                    2
-                ]
-                break
-        if grid_group_reference_z is not None:
-            break
+    scene_node_candidates: dict[int, tuple[Vec3f, float]] = {}
 
     scene_node_index_aliases = _build_scene_node_index_aliases(
         three_d_obj_db_pc,
@@ -176,57 +160,33 @@ def _collect_scene_node_transforms_from_scene_node_group_transforms(
                 translation = (
                     scene_node_entry.grid_xy()[0],
                     scene_node_entry.grid_xy()[1],
-                    translation[2],
+                    0.0,
                 )
-            elif grid_group_reference_z is not None:
-                translation = (
-                    translation[0],
-                    translation[1],
-                    translation[2] + grid_group_reference_z,
+                scene_node_candidates.setdefault(
+                    scene_node_index,
+                    (
+                        translation,
+                        scene_node_group_transform.yaw,
+                    ),
                 )
-            scene_node_transform = SceneNodeTransformCandidate(
-                translation=translation,
-                yaw=scene_node_group_transform.yaw,
-                scene_node_group=scene_node_group_transform.scene_node_group,
-            )
-            candidates = scene_node_transform_candidates.setdefault(
-                scene_node_index, set()
-            )
-            candidates.add(scene_node_transform)
+            else:
+                scene_node_candidates[scene_node_index] = (
+                    translation,
+                    scene_node_group_transform.yaw,
+                )
 
     scene_node_translations: dict[int, Vec3f] = {}
     scene_node_yaws: dict[int, float] = {}
-    scene_node_groups: dict[int, int] = {}
-    # Something weird going on with the aliases and this band-aids over it
-    # Usually the first few nodes that get proxied need this
-    for scene_node_index, candidates in scene_node_transform_candidates.items():
-        preferred_candidates = [
-            candidate
-            for candidate in candidates
-            if candidate.scene_node_group != THREE_D_OBJ_DB_PC_SCENE_NODE_GROUP_GRID
-        ]
-        if len(preferred_candidates) == 1:
-            preferred_candidate = preferred_candidates[0]
-            scene_node_translation = preferred_candidate.translation
-            scene_node_yaw = preferred_candidate.yaw
-            scene_node_group = preferred_candidate.scene_node_group
-            scene_node_translations[scene_node_index] = scene_node_translation
-            scene_node_yaws[scene_node_index] = scene_node_yaw
-            scene_node_groups[scene_node_index] = scene_node_group
-            continue
-        if len(candidates) == 1:
-            only_candidate = next(iter(candidates))
-            scene_node_translation = only_candidate.translation
-            scene_node_yaw = only_candidate.yaw
-            scene_node_group = only_candidate.scene_node_group
-            scene_node_translations[scene_node_index] = scene_node_translation
-            scene_node_yaws[scene_node_index] = scene_node_yaw
-            scene_node_groups[scene_node_index] = scene_node_group
+    for scene_node_index, (
+        scene_node_translation,
+        scene_node_yaw,
+    ) in scene_node_candidates.items():
+        scene_node_translations[scene_node_index] = scene_node_translation
+        scene_node_yaws[scene_node_index] = scene_node_yaw
 
     return SceneNodeTransformsFromSceneNodeGroupTransforms(
         scene_node_translations=scene_node_translations,
         scene_node_yaws=scene_node_yaws,
-        scene_node_groups=scene_node_groups,
     )
 
 
@@ -370,7 +330,7 @@ def _create_scene_node_objects(
     return scene_node_objects
 
 
-def _load_packed_images(textures_pc: TexturesPc):
+def _load_packed_images(textures_pc: TexturesPc) -> list[bpy.types.Image]:
     temp_dir = Path(bpy.app.tempdir or ".")
     temp_dir.mkdir(parents=True, exist_ok=True)
 
@@ -503,6 +463,7 @@ def _build_scene_node_import_state(
     three_d_obj_pc: ThreeDObjPc,
     three_d_objs_pc: ThreeDObjsPc,
 ) -> SceneNodeImportState:
+    num_scene_nodes = len(three_d_objs_pc.entries)
     mesh_indices_to_scene_node_indices = _mesh_indices_to_scene_node_indices(
         three_d_objs_pc
     )
@@ -513,24 +474,20 @@ def _build_scene_node_import_state(
         _collect_scene_node_transforms_from_scene_node_group_transforms(
             three_d_obj_pc.three_d_obj_db_pc,
             three_d_objs_pc,
-            len(three_d_objs_pc.entries),
+            num_scene_nodes,
         )
     )
-    for (
-        scene_node_index,
-        scene_node_translation,
-    ) in (
-        scene_node_transforms_from_scene_node_group_transforms.scene_node_translations.items()
-    ):
-        scene_node_translations[scene_node_index] = scene_node_translation
+    scene_node_translations.update(
+        scene_node_transforms_from_scene_node_group_transforms.scene_node_translations
+    )
     scene_node_labels = _collect_scene_node_labels(
         three_d_obj_pc.three_d_obj_db_pc,
         three_d_obj_pc.bininfo_bin,
-        len(three_d_objs_pc.entries),
+        num_scene_nodes,
     )
     scene_node_objects = _create_scene_node_objects(
         target_collection,
-        len(three_d_objs_pc.entries),
+        num_scene_nodes,
         scene_node_translations,
         scene_node_transforms_from_scene_node_group_transforms.scene_node_yaws,
         scene_node_parents,
